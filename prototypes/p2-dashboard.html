@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Roam · 我的场景</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      background:
+        radial-gradient(ellipse 800px 500px at 0% 0%, rgba(139,92,246,0.12), transparent 60%),
+        radial-gradient(ellipse 700px 400px at 100% 30%, rgba(59,130,246,0.08), transparent 60%),
+        #FAFAFC;
+      min-height: 100vh; color: #1A1A2E;
+    }
+    .glass { background: rgba(255,255,255,0.65); backdrop-filter: blur(20px) saturate(180%); -webkit-backdrop-filter: blur(20px) saturate(180%); border: 1px solid rgba(255,255,255,0.9); box-shadow: 0 8px 32px rgba(139,92,246,0.06), 0 1px 2px rgba(0,0,0,0.03); }
+    .glass-card { transition: all 220ms cubic-bezier(0.16, 1, 0.3, 1); }
+    .glass-card:hover { transform: translateY(-3px); box-shadow: 0 16px 48px rgba(139,92,246,0.15); border-color: rgba(139,92,246,0.18); }
+    .btn-primary { background: linear-gradient(135deg, #8B5CF6 0%, #3B82F6 100%); color: white; box-shadow: 0 8px 20px rgba(139,92,246,0.28), inset 0 1px 0 rgba(255,255,255,0.25); transition: all 200ms ease-out; }
+    .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 12px 28px rgba(139,92,246,0.38); }
+    .canvas-ph { background:
+      repeating-linear-gradient(45deg, rgba(139,92,246,0.04) 0 10px, transparent 10px 20px),
+      linear-gradient(135deg, #F4F0FF, #FDF2F8); }
+  </style>
+</head>
+<body>
+  <!-- Top nav -->
+  <nav class="glass sticky top-3 z-50 mx-3 md:mx-6 mt-3 px-5 py-3 flex items-center justify-between rounded-2xl">
+    <a href="index.html" class="flex items-center gap-2"><span class="text-xl">🚶</span><span class="font-semibold tracking-tight">Roam</span></a>
+    <div class="flex items-center gap-1">
+      <a href="p2-dashboard.html" class="text-sm px-3 py-2 rounded-xl bg-[#1A1A2E] text-white font-medium">我的场景</a>
+      <a href="p6-help.html" class="text-sm px-3 py-2 rounded-xl text-[#52525B] hover:text-[#1A1A2E] hover:bg-white/60">帮助</a>
+      <div class="ml-3 flex items-center gap-2 bg-white/70 backdrop-blur-md border border-black/5 rounded-full pl-1 pr-3 py-1 cursor-pointer hover:bg-white">
+        <div class="w-7 h-7 rounded-full" style="background: linear-gradient(135deg, #8B5CF6, #3B82F6);"></div>
+        <span class="text-sm font-medium">zhi</span>
+        <span class="text-[#A1A1AA] text-xs">▾</span>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Header -->
+  <div class="max-w-6xl mx-auto px-6 pt-10 pb-6">
+    <div class="flex items-end justify-between flex-wrap gap-4">
+      <div>
+        <h1 class="text-3xl font-semibold tracking-tight mb-1">我的场景</h1>
+        <p class="text-sm text-[#71717A]">共 3 个 · 已使用 <span class="text-[#1A1A2E] font-medium">38 MB</span> / 1 GB</p>
+      </div>
+      <a href="p3-upload.html" class="btn-primary font-medium px-5 py-3 rounded-2xl flex items-center gap-2">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+        上传新场景
+      </a>
+    </div>
+
+    <div class="mt-6 flex items-center gap-3 text-sm">
+      <span class="text-[#71717A]">排序</span>
+      <button class="bg-white/70 backdrop-blur-md border border-black/5 px-3 py-1.5 rounded-xl hover:bg-white flex items-center gap-2 font-medium">
+        最近创建 <span class="text-[#A1A1AA] text-xs">▾</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Grid -->
+  <main class="max-w-6xl mx-auto px-6 pb-20">
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+      <a href="p4-scene-detail.html" class="glass glass-card rounded-3xl overflow-hidden block relative group">
+        <div class="canvas-ph aspect-video flex items-center justify-center text-[#8B5CF6]/40 text-xs font-medium">封面截图 · 卧室</div>
+        <div class="p-5">
+          <div class="flex items-center justify-between">
+            <div class="text-base font-semibold">卧室</div>
+            <button class="text-[#A1A1AA] hover:text-[#1A1A2E] opacity-0 group-hover:opacity-100 transition w-8 h-8 rounded-lg hover:bg-black/5 flex items-center justify-center text-lg">⋮</button>
+          </div>
+          <div class="text-xs text-[#71717A] mt-1.5 flex items-center gap-2">
+            <span>12 MB</span><span class="text-[#D4D4D8]">·</span>
+            <span class="text-[#06B6D4] font-medium">公开</span>
+          </div>
+        </div>
+      </a>
+
+      <a href="p4-scene-detail.html" class="glass glass-card rounded-3xl overflow-hidden block relative group">
+        <div class="canvas-ph aspect-video flex items-center justify-center text-[#3B82F6]/40 text-xs font-medium">封面截图 · 工作室</div>
+        <div class="p-5">
+          <div class="flex items-center justify-between">
+            <div class="text-base font-semibold">工作室</div>
+            <button class="text-[#A1A1AA] opacity-0 group-hover:opacity-100 transition w-8 h-8 rounded-lg hover:bg-black/5 flex items-center justify-center text-lg">⋮</button>
+          </div>
+          <div class="text-xs text-[#71717A] mt-1.5 flex items-center gap-2">
+            <span>8 MB</span><span class="text-[#D4D4D8]">·</span>
+            <span class="text-[#06B6D4] font-medium">公开</span>
+          </div>
+        </div>
+      </a>
+
+      <a href="p4-scene-detail.html" class="glass glass-card rounded-3xl overflow-hidden block relative group">
+        <div class="canvas-ph aspect-video flex items-center justify-center text-[#06B6D4]/50 text-xs font-medium">封面截图 · 展览</div>
+        <div class="p-5">
+          <div class="flex items-center justify-between">
+            <div class="text-base font-semibold">展览</div>
+            <button class="text-[#A1A1AA] opacity-0 group-hover:opacity-100 transition w-8 h-8 rounded-lg hover:bg-black/5 flex items-center justify-center text-lg">⋮</button>
+          </div>
+          <div class="text-xs text-[#71717A] mt-1.5 flex items-center gap-2">
+            <span>18 MB</span><span class="text-[#D4D4D8]">·</span>
+            <span class="text-[#06B6D4] font-medium">公开</span>
+          </div>
+        </div>
+      </a>
+    </div>
+
+    <div class="mt-10 text-xs text-[#A1A1AA] text-center">
+      想看空状态? <a href="#empty" class="text-[#8B5CF6] hover:text-[#7C3AED] font-medium underline underline-offset-4">点这里</a>
+    </div>
+
+    <div id="empty" class="mt-12 glass rounded-3xl p-12 text-center">
+      <div class="w-16 h-16 rounded-2xl mx-auto mb-5 flex items-center justify-center text-3xl" style="background: linear-gradient(135deg, rgba(139,92,246,0.12), rgba(59,130,246,0.12));">📦</div>
+      <div class="text-lg font-semibold mb-1.5">还没有场景</div>
+      <div class="text-sm text-[#71717A] mb-6 max-w-md mx-auto">上传你的第一个 3DGS 文件,获得一条可分享的公开链接</div>
+      <div class="flex items-center justify-center gap-3 flex-wrap">
+        <a href="p3-upload.html" class="btn-primary font-medium px-5 py-3 rounded-2xl">上传第一个场景</a>
+        <a href="p6-help.html" class="text-sm text-[#52525B] hover:text-[#1A1A2E] px-3 py-2 font-medium">不知道怎么做?</a>
+      </div>
+    </div>
+  </main>
+</body>
+</html>

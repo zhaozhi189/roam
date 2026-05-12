@@ -1,0 +1,75 @@
+# ===== macOS =====
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# ===== JetBrains IDE =====
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# ===== VS Code =====
+.vscode/
+*.code-workspace
+
+# ===== Node / Vite (前端) =====
+node_modules/
+dist/
+build/
+.vite/
+*.tsbuildinfo
+.eslintcache
+.parcel-cache/
+.cache/
+
+# 包管理器日志
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# ===== Cloudflare Workers / Pages =====
+.wrangler/
+.dev.vars
+.dev.vars.*
+wrangler.toml.bak
+
+# ===== 环境变量 / 密钥 =====
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets.json
+
+# ===== 测试 / 覆盖率 =====
+coverage/
+*.lcov
+.nyc_output/
+
+# ===== 3DGS / 大文件实验产物(本地玩,不入库)=====
+*.ply
+*.splat
+*.sog
+# 例外:示例数据放在 doc/examples 下时可手动 git add -f
+!doc/**/*.sog
+
+# ===== 日志 =====
+*.log
+logs/
+
+# ===== 临时文件 =====
+*.tmp
+*.swp
+*.swo
+*~
+.tmp/
+tmp/
+
+# ===== 操作系统其他 =====
+Thumbs.db
+ehthumbs.db
+Desktop.ini

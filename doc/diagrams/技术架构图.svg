@@ -1,0 +1,165 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 920" font-family="-apple-system, BlinkMacSystemFont, &quot;PingFang SC&quot;, &quot;Microsoft YaHei&quot;, sans-serif">
+  <defs>
+    <marker id="arrBlue" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#2563eb"/>
+    </marker>
+    <marker id="arrOrange" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#ea580c"/>
+    </marker>
+    <marker id="arrGray" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#9ca3af"/>
+    </marker>
+    <filter id="soft" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="#000" flood-opacity="0.08"/>
+    </filter>
+    <linearGradient id="cfGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#f97316"/>
+      <stop offset="100%" stop-color="#fb923c"/>
+    </linearGradient>
+  </defs>
+  <text x="40" y="38" font-size="22" font-weight="700" fill="#111827">Roam 技术架构图 v0.1</text>
+  <text x="40" y="58" font-size="12" fill="#6b7280">数据流向 · 技术栈选型 · MVP 边界 / Phase 2+ 扩展点</text>
+  <rect x="900" y="22" width="270" height="60" rx="6" fill="#ffffff" stroke="#e5e7eb" stroke-width="1"/>
+  <text x="912" y="40" font-size="11" font-weight="600" fill="#374151">图例</text>
+  <line x1="912" y1="52" x2="942" y2="52" stroke="#2563eb" stroke-width="2" marker-end="url(#arrBlue)"/>
+  <text x="950" y="56" font-size="11" fill="#374151">上传(写)</text>
+  <line x1="1020" y1="52" x2="1050" y2="52" stroke="#ea580c" stroke-width="2" marker-end="url(#arrOrange)"/>
+  <text x="1058" y="56" font-size="11" fill="#374151">消费(读)</text>
+  <line x1="912" y1="72" x2="942" y2="72" stroke="#9ca3af" stroke-width="1.5" stroke-dasharray="5,3"/>
+  <text x="950" y="76" font-size="11" fill="#374151">Phase 2/3 扩展</text>
+  <text x="40" y="108" font-size="11" font-weight="600" fill="#9ca3af" letter-spacing="1">LAYER 1 · 用户采集端</text>
+  <rect x="40" y="115" width="820" height="90" rx="8" fill="#fef3c7" stroke="#f59e0b" stroke-width="1.2" opacity="0.5"/>
+  <rect x="60" y="130" width="160" height="65" rx="14" fill="#ffffff" stroke="#f59e0b" stroke-width="1.5" filter="url(#soft)"/>
+  <text x="140" y="155" font-size="14" font-weight="700" fill="#92400e" text-anchor="middle">📱 Android 手机</text>
+  <text x="140" y="174" font-size="10" fill="#78350f" text-anchor="middle">中端及以上 / 任意摄像头</text>
+  <text x="140" y="188" font-size="10" fill="#78350f" text-anchor="middle">3DGS 不依赖 LiDAR</text>
+  <rect x="250" y="130" width="140" height="65" rx="8" fill="#ffffff" stroke="#f59e0b" stroke-width="1.2" filter="url(#soft)"/>
+  <text x="320" y="156" font-size="13" font-weight="600" fill="#92400e" text-anchor="middle">KIRI Engine</text>
+  <text x="320" y="174" font-size="10" fill="#78350f" text-anchor="middle">Gaussian Splatting</text>
+  <text x="320" y="188" font-size="10" fill="#78350f" text-anchor="middle">导出 .ply</text>
+  <rect x="410" y="130" width="140" height="65" rx="8" fill="#ffffff" stroke="#f59e0b" stroke-width="1.2" filter="url(#soft)"/>
+  <text x="480" y="156" font-size="13" font-weight="600" fill="#92400e" text-anchor="middle">Polycam</text>
+  <text x="480" y="174" font-size="10" fill="#78350f" text-anchor="middle">照片/LiDAR</text>
+  <text x="480" y="188" font-size="10" fill="#78350f" text-anchor="middle">导出 .ply</text>
+  <rect x="570" y="130" width="140" height="65" rx="8" fill="#ffffff" stroke="#f59e0b" stroke-width="1.2" filter="url(#soft)"/>
+  <text x="640" y="156" font-size="13" font-weight="600" fill="#92400e" text-anchor="middle">Luma AI</text>
+  <text x="640" y="174" font-size="10" fill="#78350f" text-anchor="middle">云训练</text>
+  <text x="640" y="188" font-size="10" fill="#78350f" text-anchor="middle">导出 .ply</text>
+  <text x="740" y="170" font-size="11" font-weight="600" fill="#92400e">产物</text>
+  <rect x="735" y="178" width="110" height="22" rx="3" fill="#fffbeb" stroke="#f59e0b" stroke-width="1"/>
+  <text x="790" y="193" font-size="11" font-weight="600" fill="#92400e" text-anchor="middle">scene.ply</text>
+  <path d="M 600 205 L 600 240" stroke="#2563eb" stroke-width="2.2" fill="none" marker-end="url(#arrBlue)"/>
+  <rect x="610" y="215" width="100" height="20" rx="3" fill="#ffffff" stroke="#dbeafe"/>
+  <text x="660" y="229" font-size="10" font-weight="600" fill="#1d4ed8" text-anchor="middle">上传或导出</text>
+  <text x="40" y="262" font-size="11" font-weight="600" fill="#9ca3af" letter-spacing="1">LAYER 2 · 本地处理(可选)</text>
+  <rect x="40" y="270" width="820" height="75" rx="8" fill="#f0fdf4" stroke="#22c55e" stroke-width="1.2" opacity="0.6"/>
+  <rect x="60" y="285" width="160" height="50" rx="8" fill="#ffffff" stroke="#16a34a" stroke-width="1.5" filter="url(#soft)"/>
+  <text x="140" y="307" font-size="13" font-weight="700" fill="#15803d" text-anchor="middle">💻 用户电脑</text>
+  <text x="140" y="324" font-size="10" fill="#166534" text-anchor="middle">macOS / Linux / Windows</text>
+  <rect x="250" y="285" width="240" height="50" rx="8" fill="#ffffff" stroke="#16a34a" stroke-width="1.5" filter="url(#soft)"/>
+  <text x="370" y="305" font-size="13" font-weight="700" fill="#15803d" text-anchor="middle">SplatTransform 2.0</text>
+  <text x="370" y="323" font-size="10" font-family="monospace" fill="#166534" text-anchor="middle">splat-transform scene.ply -K scene.sog</text>
+  <rect x="520" y="285" width="160" height="22" rx="3" fill="#ecfdf5" stroke="#16a34a" stroke-width="1"/>
+  <text x="600" y="300" font-size="11" font-weight="600" fill="#15803d" text-anchor="middle">scene.sog(压缩)</text>
+  <rect x="520" y="312" width="160" height="22" rx="3" fill="#ecfdf5" stroke="#16a34a" stroke-width="1"/>
+  <text x="600" y="327" font-size="11" font-weight="600" fill="#15803d" text-anchor="middle">scene.collision.glb</text>
+  <text x="710" y="307" font-size="10" font-style="italic" fill="#16a34a">MVP 阶段</text>
+  <text x="710" y="320" font-size="10" font-style="italic" fill="#16a34a">用户在本地跑</text>
+  <text x="710" y="333" font-size="10" font-style="italic" fill="#16a34a">(命令行一键)</text>
+  <path d="M 600 345 L 600 405" stroke="#2563eb" stroke-width="2.2" fill="none" marker-end="url(#arrBlue)"/>
+  <rect x="610" y="362" width="120" height="20" rx="3" fill="#ffffff" stroke="#dbeafe"/>
+  <text x="670" y="376" font-size="10" font-weight="600" fill="#1d4ed8" text-anchor="middle">上传 .sog + .glb</text>
+  <text x="40" y="425" font-size="11" font-weight="600" fill="#9ca3af" letter-spacing="1">LAYER 3 · Roam 服务端</text>
+  <rect x="40" y="435" width="820" height="170" rx="10" fill="#fff7ed" stroke="#ea580c" stroke-width="1.8" filter="url(#soft)"/>
+  <rect x="40" y="435" width="820" height="32" rx="10" fill="url(#cfGrad)"/>
+  <text x="60" y="457" font-size="14" font-weight="700" fill="#ffffff">☁️  Roam @ Cloudflare 全家桶</text>
+  <text x="850" y="457" font-size="11" font-weight="600" fill="#ffffff" text-anchor="end">免费额度起步</text>
+  <rect x="60" y="480" width="180" height="110" rx="8" fill="#ffffff" stroke="#ea580c" stroke-width="1.4" filter="url(#soft)"/>
+  <text x="150" y="500" font-size="13" font-weight="700" fill="#9a3412" text-anchor="middle">前端</text>
+  <text x="150" y="518" font-size="10" font-weight="600" fill="#9a3412" text-anchor="middle">Cloudflare Pages</text>
+  <line x1="80" y1="525" x2="220" y2="525" stroke="#fed7aa" stroke-width="1"/>
+  <text x="150" y="540" font-size="10" fill="#7c2d12" text-anchor="middle">PlayCanvas Engine</text>
+  <text x="150" y="555" font-size="10" fill="#7c2d12" text-anchor="middle">Vite + TypeScript</text>
+  <text x="150" y="570" font-size="10" fill="#7c2d12" text-anchor="middle">第一人称控制器</text>
+  <text x="150" y="585" font-size="10" fill="#7c2d12" text-anchor="middle">UI / 上传组件</text>
+  <rect x="255" y="480" width="180" height="110" rx="8" fill="#ffffff" stroke="#ea580c" stroke-width="1.4" filter="url(#soft)"/>
+  <text x="345" y="500" font-size="13" font-weight="700" fill="#9a3412" text-anchor="middle">后端 API</text>
+  <text x="345" y="518" font-size="10" font-weight="600" fill="#9a3412" text-anchor="middle">Cloudflare Workers</text>
+  <line x1="275" y1="525" x2="415" y2="525" stroke="#fed7aa" stroke-width="1"/>
+  <text x="345" y="540" font-size="10" fill="#7c2d12" text-anchor="middle">Hono 框架</text>
+  <text x="345" y="555" font-size="10" fill="#7c2d12" text-anchor="middle">POST /api/upload</text>
+  <text x="345" y="570" font-size="10" fill="#7c2d12" text-anchor="middle">GET /api/scenes</text>
+  <text x="345" y="585" font-size="10" fill="#7c2d12" text-anchor="middle">GitHub OAuth</text>
+  <rect x="450" y="480" width="180" height="110" rx="8" fill="#ffffff" stroke="#ea580c" stroke-width="1.4" filter="url(#soft)"/>
+  <text x="540" y="500" font-size="13" font-weight="700" fill="#9a3412" text-anchor="middle">数据库</text>
+  <text x="540" y="518" font-size="10" font-weight="600" fill="#9a3412" text-anchor="middle">Cloudflare D1(SQLite)</text>
+  <line x1="470" y1="525" x2="610" y2="525" stroke="#fed7aa" stroke-width="1"/>
+  <text x="540" y="540" font-size="10" fill="#7c2d12" text-anchor="middle">scenes 表</text>
+  <text x="540" y="555" font-size="10" fill="#7c2d12" text-anchor="middle">users 表</text>
+  <text x="540" y="570" font-size="10" fill="#7c2d12" text-anchor="middle">stats 表(可选)</text>
+  <text x="540" y="585" font-size="10" fill="#7c2d12" text-anchor="middle">元数据,不存大文件</text>
+  <rect x="645" y="480" width="195" height="110" rx="8" fill="#ffffff" stroke="#ea580c" stroke-width="1.4" filter="url(#soft)"/>
+  <text x="742" y="500" font-size="13" font-weight="700" fill="#9a3412" text-anchor="middle">对象存储 + CDN</text>
+  <text x="742" y="518" font-size="10" font-weight="600" fill="#9a3412" text-anchor="middle">Cloudflare R2</text>
+  <line x1="665" y1="525" x2="820" y2="525" stroke="#fed7aa" stroke-width="1"/>
+  <text x="742" y="540" font-size="9" font-family="monospace" fill="#7c2d12" text-anchor="middle">/scenes/{uuid}/scene.sog</text>
+  <text x="742" y="555" font-size="9" font-family="monospace" fill="#7c2d12" text-anchor="middle">     /collision.glb</text>
+  <text x="742" y="570" font-size="9" font-family="monospace" fill="#7c2d12" text-anchor="middle">     /thumb.jpg</text>
+  <text x="742" y="585" font-size="10" fill="#7c2d12" text-anchor="middle">免费额度 10GB</text>
+  <path d="M 240 545 L 254 545" stroke="#6b7280" stroke-width="1" fill="none" marker-end="url(#arrGray)"/>
+  <path d="M 436 545 L 449 545" stroke="#6b7280" stroke-width="1" fill="none" marker-end="url(#arrGray)"/>
+  <path d="M 540 590 Q 580 615 645 565" stroke="#6b7280" stroke-width="1" fill="none" marker-end="url(#arrGray)"/>
+  <path d="M 600 605 L 600 660" stroke="#ea580c" stroke-width="2.2" fill="none" marker-end="url(#arrOrange)"/>
+  <rect x="610" y="620" width="200" height="20" rx="3" fill="#ffffff" stroke="#fed7aa"/>
+  <text x="710" y="634" font-size="10" font-weight="600" fill="#c2410c" text-anchor="middle">HTTPS · Streamed SOG</text>
+  <text x="40" y="678" font-size="11" font-weight="600" fill="#9ca3af" letter-spacing="1">LAYER 4 · 浏览器消费端</text>
+  <rect x="40" y="685" width="820" height="130" rx="8" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.2" opacity="0.5"/>
+  <rect x="60" y="700" width="180" height="50" rx="8" fill="#ffffff" stroke="#3b82f6" stroke-width="1.4" filter="url(#soft)"/>
+  <text x="150" y="722" font-size="13" font-weight="700" fill="#1e3a8a" text-anchor="middle">🖥 Desktop Chrome</text>
+  <text x="150" y="740" font-size="10" fill="#1e40af" text-anchor="middle">60fps · 完整体验</text>
+  <rect x="250" y="700" width="180" height="50" rx="8" fill="#ffffff" stroke="#3b82f6" stroke-width="1.4" filter="url(#soft)"/>
+  <text x="340" y="722" font-size="13" font-weight="700" fill="#1e3a8a" text-anchor="middle">📱 Android Chrome</text>
+  <text x="340" y="740" font-size="10" fill="#1e40af" text-anchor="middle">主目标 · LOD 自适应</text>
+  <rect x="440" y="700" width="180" height="50" rx="8" fill="#ffffff" stroke="#3b82f6" stroke-width="1.4" filter="url(#soft)"/>
+  <text x="530" y="722" font-size="13" font-weight="700" fill="#1e3a8a" text-anchor="middle">🍏 iOS Safari</text>
+  <text x="530" y="740" font-size="10" fill="#1e40af" text-anchor="middle">降级流畅 · 内存严格</text>
+  <rect x="630" y="700" width="220" height="50" rx="8" fill="#dbeafe" stroke="#3b82f6" stroke-width="1.4"/>
+  <text x="740" y="720" font-size="11" font-weight="700" fill="#1e3a8a" text-anchor="middle">运行时能力</text>
+  <text x="740" y="736" font-size="9" fill="#1e40af" text-anchor="middle">WASD / 触屏摇杆 · 物理碰撞 · 截图</text>
+  <text x="740" y="748" font-size="9" fill="#1e40af" text-anchor="middle">分享 URL · LOD 帧率自适应</text>
+  <rect x="60" y="765" width="780" height="38" rx="6" fill="#ffffff" stroke="#3b82f6" stroke-width="1" stroke-dasharray="3,2"/>
+  <text x="450" y="781" font-size="11" font-weight="600" fill="#1e3a8a" text-anchor="middle">🎯 MVP 体验路径(P0 · F-01~F-06):</text>
+  <text x="450" y="797" font-size="10" fill="#1e40af" text-anchor="middle">用户登录 → 上传 .sog/.glb → 后端生成公开 URL → 朋友手机点开 → 浏览器漫游 + 分享</text>
+  <rect x="890" y="115" width="290" height="700" rx="10" fill="#fafafa" stroke="#d1d5db" stroke-width="1.2" stroke-dasharray="6,4"/>
+  <text x="1035" y="138" font-size="13" font-weight="700" fill="#4b5563" text-anchor="middle">Phase 2 / 3 扩展(非 MVP)</text>
+  <rect x="905" y="170" width="260" height="60" rx="6" fill="#ffffff" stroke="#9ca3af" stroke-width="1" stroke-dasharray="4,2"/>
+  <text x="915" y="188" font-size="12" font-weight="700" fill="#374151">🔄 端到端扫描</text>
+  <text x="1155" y="188" font-size="9" fill="#6b7280" text-anchor="end">F-07 · Phase 2</text>
+  <text x="915" y="206" font-size="10" fill="#6b7280">用户在 App 内一键扫描 → 后端调 Luma/Polycam</text>
+  <text x="915" y="220" font-size="10" fill="#6b7280"> API 自动训练 → 自动产链接</text>
+  <rect x="905" y="260" width="260" height="60" rx="6" fill="#ffffff" stroke="#9ca3af" stroke-width="1" stroke-dasharray="4,2"/>
+  <text x="915" y="278" font-size="12" font-weight="700" fill="#374151">🧩 多场景拼接</text>
+  <text x="1155" y="278" font-size="9" fill="#6b7280" text-anchor="end">F-08 · Phase 2</text>
+  <text x="915" y="296" font-size="10" fill="#6b7280">把多个 splat 拼一个大场景(整栋房子)</text>
+  <rect x="905" y="340" width="260" height="60" rx="6" fill="#ffffff" stroke="#9ca3af" stroke-width="1" stroke-dasharray="4,2"/>
+  <text x="915" y="358" font-size="12" font-weight="700" fill="#374151">📸 截图 / 录屏</text>
+  <text x="1155" y="358" font-size="9" fill="#6b7280" text-anchor="end">F-09 · Phase 2</text>
+  <text x="915" y="376" font-size="10" fill="#6b7280">一键导出分享到社交</text>
+  <rect x="905" y="420" width="260" height="60" rx="6" fill="#ffffff" stroke="#9ca3af" stroke-width="1" stroke-dasharray="4,2"/>
+  <text x="915" y="438" font-size="12" font-weight="700" fill="#374151">📍 打点 / 标注</text>
+  <text x="1155" y="438" font-size="9" fill="#6b7280" text-anchor="end">F-10 · Phase 2</text>
+  <text x="915" y="456" font-size="10" fill="#6b7280">场景内插入小标签</text>
+  <rect x="905" y="500" width="260" height="60" rx="6" fill="#ffffff" stroke="#9ca3af" stroke-width="1" stroke-dasharray="4,2"/>
+  <text x="915" y="518" font-size="12" font-weight="700" fill="#374151">📲 PWA 安装</text>
+  <text x="1155" y="518" font-size="9" fill="#6b7280" text-anchor="end">F-11 · Phase 2</text>
+  <text x="915" y="536" font-size="10" fill="#6b7280">Android 添加到主屏幕</text>
+  <rect x="905" y="580" width="260" height="60" rx="6" fill="#ffffff" stroke="#9ca3af" stroke-width="1" stroke-dasharray="4,2"/>
+  <text x="915" y="598" font-size="12" font-weight="700" fill="#374151">🤖 LLM 加持</text>
+  <text x="1155" y="598" font-size="9" fill="#6b7280" text-anchor="end">F-14 · Phase 3</text>
+  <text x="915" y="616" font-size="10" fill="#6b7280">AI 导游 / 自然语言搜场景 / 自动标房间类型</text>
+  <rect x="905" y="680" width="260" height="60" rx="6" fill="#ffffff" stroke="#9ca3af" stroke-width="1" stroke-dasharray="4,2"/>
+  <text x="915" y="698" font-size="12" font-weight="700" fill="#374151">👥 多人协作</text>
+  <text x="1155" y="698" font-size="9" fill="#6b7280" text-anchor="end">F-13 · Phase 3</text>
+  <text x="915" y="716" font-size="10" fill="#6b7280">WebSocket 多人同场景实时漫游</text>
+  <text x="40" y="895" font-size="10" font-style="italic" fill="#9ca3af">⚠️ Roam 不是大模型应用 · 不依赖 LLM · MVP 阶段 0 AI Agent · LLM 是 Phase 3 的体验放大器(F-14)</text>
+</svg>

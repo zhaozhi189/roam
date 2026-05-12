@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Roam · 移动端原型</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      background:
+        radial-gradient(circle at 15% 10%, rgba(139,92,246,0.10), transparent 45%),
+        radial-gradient(circle at 85% 90%, rgba(59,130,246,0.08), transparent 45%),
+        #F1F2F6;
+      min-height: 100vh; color: #1A1A2E;
+    }
+    /* iPhone 14 Pro frame: 375×812 内屏,加 12px 边框 + 圆角 */
+    .phone {
+      width: 375px; height: 812px;
+      background: #1A1A2E; border-radius: 48px; padding: 12px;
+      box-shadow: 0 30px 60px rgba(139,92,246,0.15), 0 8px 16px rgba(0,0,0,0.08), inset 0 0 0 2px rgba(255,255,255,0.05);
+      flex-shrink: 0;
+    }
+    .phone-screen {
+      width: 100%; height: 100%; border-radius: 36px; overflow: hidden;
+      background: #FAFAFC; position: relative;
+    }
+    .notch {
+      position: absolute; top: 8px; left: 50%; transform: translateX(-50%);
+      width: 110px; height: 28px; background: #000; border-radius: 16px; z-index: 100;
+    }
+    .status-bar {
+      height: 44px; display: flex; align-items: flex-end; justify-content: space-between;
+      padding: 0 28px 8px; font-size: 14px; font-weight: 600; color: #1A1A2E; position: relative; z-index: 50;
+    }
+    .glass { background: rgba(255,255,255,0.75); backdrop-filter: blur(16px) saturate(180%); -webkit-backdrop-filter: blur(16px) saturate(180%); border: 1px solid rgba(255,255,255,0.9); box-shadow: 0 4px 16px rgba(139,92,246,0.06); }
+    .btn-primary { background: linear-gradient(135deg, #8B5CF6 0%, #3B82F6 100%); color: white; box-shadow: 0 6px 16px rgba(139,92,246,0.28); }
+    .btn-cyan { background: linear-gradient(135deg, #06B6D4 0%, #0891B2 100%); color: white; box-shadow: 0 6px 14px rgba(6,182,212,0.30); }
+    .canvas-ph { background:
+      repeating-linear-gradient(45deg, rgba(139,92,246,0.04) 0 8px, transparent 8px 16px),
+      linear-gradient(135deg, #F4F0FF, #EFF6FF);
+      border: 1px dashed rgba(139,92,246,0.25); }
+    .gradient-text { background: linear-gradient(135deg, #8B5CF6 0%, #3B82F6 50%, #06B6D4 100%); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+    .phone-bg-purple { background:
+      radial-gradient(ellipse 400px 300px at 0% 0%, rgba(139,92,246,0.14), transparent 70%),
+      radial-gradient(ellipse 350px 250px at 100% 20%, rgba(59,130,246,0.12), transparent 70%),
+      radial-gradient(ellipse 300px 200px at 50% 100%, rgba(6,182,212,0.08), transparent 70%),
+      #FAFAFC; }
+    .phone-bg-dark {
+      background:
+        radial-gradient(circle at 30% 40%, rgba(6,182,212,0.12), transparent 50%),
+        radial-gradient(circle at 70% 60%, rgba(99,102,241,0.10), transparent 50%),
+        #050810;
+    }
+    .home-indicator {
+      position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%);
+      width: 134px; height: 5px; background: rgba(0,0,0,0.85); border-radius: 3px;
+    }
+    .home-indicator-light { background: rgba(255,255,255,0.65); }
+    kbd { font-family: ui-monospace, SFMono-Regular, monospace; }
+  </style>
+</head>
+<body class="p-8">
+  <div class="max-w-[1400px] mx-auto">
+    <header class="mb-10">
+      <div class="flex items-center gap-3 mb-3">
+        <div class="w-10 h-10 rounded-xl glass flex items-center justify-center text-xl">🚶</div>
+        <h1 class="text-2xl font-semibold tracking-tight">Roam · 移动端原型 v0.3</h1>
+      </div>
+      <p class="text-[#52525B] max-w-2xl leading-relaxed">375 × 812(iPhone 14 Pro 内屏)布局。所有页面均为响应式 Web,通过浏览器访问,不是原生 App。P5 公开浏览页保留深色沉浸。</p>
+      <div class="mt-4 flex items-center gap-2 text-sm">
+        <a href="index.html" class="text-[#8B5CF6] hover:text-[#7C3AED] font-medium underline underline-offset-4">← 返回桌面版总览</a>
+      </div>
+    </header>
+
+    <!-- Phones row 1: P1 / P2 / P3 -->
+    <div class="flex items-start gap-8 mb-10 overflow-x-auto pb-4">
+
+      <!-- ========== P1 Landing (mobile) ========== -->
+      <div>
+        <div class="text-xs uppercase tracking-widest text-[#8B5CF6] mb-3 font-semibold">P1 · 落地页</div>
+        <div class="phone">
+          <div class="phone-screen phone-bg-purple">
+            <div class="notch"></div>
+            <div class="status-bar"><span>9:41</span><span>●●●●● 5G</span></div>
+
+            <!-- Mobile Nav -->
+            <nav class="mx-3 px-4 py-2.5 glass rounded-2xl flex items-center justify-between">
+              <div class="flex items-center gap-1.5"><span class="text-base">🚶</span><span class="font-semibold text-sm">Roam</span></div>
+              <button class="btn-primary text-xs font-medium px-3 py-1.5 rounded-lg">登录</button>
+            </nav>
+
+            <!-- Hero -->
+            <section class="px-5 pt-12 pb-8 text-center">
+              <div class="inline-flex items-center gap-1.5 glass rounded-full px-2.5 py-1 text-[10px] text-[#52525B] mb-5 font-medium">
+                <span class="w-1 h-1 bg-[#06B6D4] rounded-full"></span>MVP 早期
+              </div>
+              <h1 class="text-[28px] font-bold tracking-tight leading-[1.15] mb-4">
+                把你的房间<br/>
+                <span class="gradient-text">变成 3D 空间</span>
+              </h1>
+              <p class="text-sm text-[#52525B] mb-6 leading-relaxed px-2">
+                上传 3DGS 文件,获得一条<br/>可分享的公开链接
+              </p>
+              <button class="btn-primary text-sm font-semibold w-full py-3 rounded-2xl mb-2">立即体验示例 →</button>
+              <button class="bg-white/80 text-sm font-medium w-full py-3 rounded-2xl border border-black/8">用 GitHub 登录</button>
+            </section>
+
+            <!-- Examples -->
+            <section class="px-5 pb-10">
+              <div class="text-[10px] uppercase tracking-widest text-[#8B5CF6] font-semibold mb-2 text-center">官方示例</div>
+              <div class="glass rounded-2xl overflow-hidden mb-3">
+                <div class="canvas-ph aspect-video flex items-center justify-center text-[#8B5CF6]/40 text-[10px] font-medium">3D 预览 · 卧室</div>
+                <div class="p-3 flex items-center justify-between">
+                  <div class="text-sm font-semibold">卧室</div>
+                  <div class="text-[10px] text-[#06B6D4] font-medium bg-[#06B6D4]/10 px-2 py-0.5 rounded-full">推荐</div>
+                </div>
+              </div>
+              <div class="glass rounded-2xl overflow-hidden">
+                <div class="canvas-ph aspect-video flex items-center justify-center text-[#3B82F6]/40 text-[10px] font-medium">3D 预览 · 咖啡馆</div>
+                <div class="p-3 text-sm font-semibold">咖啡馆</div>
+              </div>
+            </section>
+
+            <div class="home-indicator"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ========== P2 Dashboard (mobile) ========== -->
+      <div>
+        <div class="text-xs uppercase tracking-widest text-[#8B5CF6] mb-3 font-semibold">P2 · 我的场景</div>
+        <div class="phone">
+          <div class="phone-screen phone-bg-purple">
+            <div class="notch"></div>
+            <div class="status-bar"><span>9:41</span><span>●●●●● 5G</span></div>
+
+            <!-- Mobile Nav -->
+            <nav class="mx-3 px-3 py-2 glass rounded-2xl flex items-center justify-between">
+              <div class="flex items-center gap-1.5"><span class="text-base">🚶</span><span class="font-semibold text-sm">Roam</span></div>
+              <div class="w-7 h-7 rounded-full" style="background: linear-gradient(135deg, #8B5CF6, #3B82F6);"></div>
+            </nav>
+
+            <!-- Header -->
+            <div class="px-5 pt-6 pb-4">
+              <h1 class="text-2xl font-semibold tracking-tight mb-0.5">我的场景</h1>
+              <p class="text-xs text-[#71717A]">共 3 个 · 38 MB / 1 GB</p>
+            </div>
+
+            <!-- Cards (single column) -->
+            <div class="px-5 space-y-3 pb-24">
+              <div class="glass rounded-2xl overflow-hidden">
+                <div class="canvas-ph aspect-video flex items-center justify-center text-[#8B5CF6]/40 text-[10px] font-medium">封面 · 卧室</div>
+                <div class="p-3 flex items-center justify-between">
+                  <div>
+                    <div class="text-sm font-semibold">卧室</div>
+                    <div class="text-[10px] text-[#71717A] mt-0.5">12 MB · <span class="text-[#06B6D4] font-medium">公开</span></div>
+                  </div>
+                  <button class="text-[#A1A1AA] w-8 h-8 rounded-lg flex items-center justify-center text-base">⋮</button>
+                </div>
+              </div>
+              <div class="glass rounded-2xl overflow-hidden">
+                <div class="canvas-ph aspect-video flex items-center justify-center text-[#3B82F6]/40 text-[10px] font-medium">封面 · 工作室</div>
+                <div class="p-3 flex items-center justify-between">
+                  <div>
+                    <div class="text-sm font-semibold">工作室</div>
+                    <div class="text-[10px] text-[#71717A] mt-0.5">8 MB · <span class="text-[#06B6D4] font-medium">公开</span></div>
+                  </div>
+                  <button class="text-[#A1A1AA] w-8 h-8 rounded-lg flex items-center justify-center text-base">⋮</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- FAB (floating action button) -->
+            <button class="btn-primary fixed-bottom absolute right-4 bottom-20 w-14 h-14 rounded-full flex items-center justify-center text-2xl font-semibold shadow-lg" style="box-shadow: 0 10px 24px rgba(139,92,246,0.40);">+</button>
+
+            <!-- Bottom tab bar -->
+            <div class="absolute bottom-3 inset-x-3 glass rounded-2xl flex items-center justify-around py-2.5">
+              <button class="flex flex-col items-center gap-0.5 text-[#8B5CF6]">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+                <span class="text-[10px] font-medium">场景</span>
+              </button>
+              <button class="flex flex-col items-center gap-0.5 text-[#A1A1AA]">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                <span class="text-[10px]">帮助</span>
+              </button>
+              <button class="flex flex-col items-center gap-0.5 text-[#A1A1AA]">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                <span class="text-[10px]">我的</span>
+              </button>
+            </div>
+
+            <div class="home-indicator"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ========== P3 Upload (mobile · bottom sheet) ========== -->
+      <div>
+        <div class="text-xs uppercase tracking-widest text-[#8B5CF6] mb-3 font-semibold">P3 · 上传(底部 Sheet)</div>
+        <div class="phone">
+          <div class="phone-screen phone-bg-purple">
+            <div class="notch"></div>
+            <div class="status-bar"><span>9:41</span><span>●●●●● 5G</span></div>
+
+            <!-- Dimmed background -->
+            <div class="absolute inset-0 pointer-events-none" style="background: rgba(244,240,255,0.65); backdrop-filter: blur(2px); margin-top: 60px;"></div>
+
+            <!-- Bottom sheet -->
+            <div class="absolute bottom-0 inset-x-0 bg-white rounded-t-3xl shadow-2xl p-5 pb-8" style="box-shadow: 0 -20px 50px rgba(139,92,246,0.15);">
+              <!-- handle -->
+              <div class="w-12 h-1 bg-black/15 rounded-full mx-auto mb-5"></div>
+
+              <div class="flex items-center justify-between mb-5">
+                <h2 class="text-base font-semibold">上传新场景</h2>
+                <button class="text-[#A1A1AA] text-2xl leading-none w-8 h-8 rounded-lg flex items-center justify-center">×</button>
+              </div>
+
+              <div class="rounded-2xl p-6 text-center mb-4" style="background: linear-gradient(135deg, rgba(139,92,246,0.06), rgba(59,130,246,0.06)); border: 2px dashed rgba(139,92,246,0.30);">
+                <div class="w-12 h-12 mx-auto mb-3 rounded-2xl flex items-center justify-center text-2xl" style="background: linear-gradient(135deg, rgba(139,92,246,0.15), rgba(59,130,246,0.15));">⬆</div>
+                <div class="text-sm font-semibold mb-3">选择 .sog / .compressed.ply</div>
+                <button class="bg-white text-sm font-medium px-4 py-2 rounded-xl border border-black/10">从相册选择</button>
+                <div class="text-[10px] text-[#A1A1AA] mt-3">单文件 ≤ 30 MB</div>
+              </div>
+
+              <label class="block text-xs text-[#52525B] mb-1.5 font-medium">场景名称</label>
+              <input type="text" placeholder="默认用文件名" class="w-full bg-white border border-black/10 rounded-xl px-3 py-2.5 text-sm mb-4" />
+
+              <button class="btn-primary w-full py-3 rounded-2xl text-sm font-semibold">开始上传</button>
+            </div>
+
+            <div class="home-indicator"></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Phones row 2: P4 / P5 / P6 -->
+    <div class="flex items-start gap-8 mb-10 overflow-x-auto pb-4">
+
+      <!-- ========== P4 Scene Detail (mobile) ========== -->
+      <div>
+        <div class="text-xs uppercase tracking-widest text-[#8B5CF6] mb-3 font-semibold">P4 · 场景详情</div>
+        <div class="phone">
+          <div class="phone-screen phone-bg-purple overflow-hidden">
+            <div class="notch"></div>
+            <div class="status-bar"><span>9:41</span><span>●●●●● 5G</span></div>
+
+            <!-- Top bar with back -->
+            <div class="px-5 py-3 flex items-center gap-3">
+              <button class="w-9 h-9 glass rounded-xl flex items-center justify-center">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+              </button>
+              <div class="flex-1 text-sm font-medium truncate">卧室</div>
+              <button class="w-9 h-9 glass rounded-xl flex items-center justify-center text-lg">⋮</button>
+            </div>
+
+            <div class="px-5">
+              <div class="flex items-center gap-2 mb-1.5">
+                <h1 class="text-2xl font-semibold tracking-tight">卧室</h1>
+                <button class="text-[#A1A1AA] w-7 h-7 rounded-lg flex items-center justify-center">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                </button>
+              </div>
+              <div class="text-[11px] text-[#71717A] mb-4">2026-05-12 · 12 MB · .sog</div>
+
+              <!-- 3D preview -->
+              <div class="canvas-ph rounded-2xl aspect-video mb-4 flex items-center justify-center">
+                <div class="text-center">
+                  <div class="text-[#8B5CF6]/60 text-xs font-medium mb-0.5">3D 漫游画布</div>
+                  <div class="text-[#A1A1AA] text-[10px]">站位</div>
+                </div>
+              </div>
+
+              <!-- Public link -->
+              <div class="glass rounded-2xl p-3 mb-4">
+                <div class="text-[10px] uppercase tracking-widest text-[#8B5CF6] mb-2 font-semibold">公开链接</div>
+                <code class="block bg-white border border-black/8 px-2.5 py-2 rounded-lg text-[11px] text-[#1A1A2E] font-mono mb-2 truncate">https://roam.app/s/aB3xY9</code>
+                <div class="grid grid-cols-2 gap-2">
+                  <button class="bg-white border border-black/10 py-2 rounded-lg text-xs font-medium">复制</button>
+                  <button class="btn-cyan py-2 rounded-lg text-xs font-medium">打开 ↗</button>
+                </div>
+              </div>
+
+              <!-- Danger -->
+              <button class="w-full bg-[#EF4444]/8 text-[#DC2626] border border-[#EF4444]/20 px-4 py-2.5 rounded-xl text-sm font-medium">
+                🗑 删除场景
+              </button>
+            </div>
+
+            <div class="home-indicator"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ========== P5 Public View (mobile · 深色) ========== -->
+      <div>
+        <div class="text-xs uppercase tracking-widest text-[#8B5CF6] mb-3 font-semibold">P5 · 公开浏览 <span class="ml-1 text-[10px] bg-[#1A1A2E] text-white px-1.5 py-0.5 rounded">深色沉浸</span></div>
+        <div class="phone">
+          <div class="phone-screen phone-bg-dark text-white overflow-hidden">
+            <div class="notch"></div>
+            <div class="status-bar text-white"><span>9:41</span><span>●●●●● 5G</span></div>
+
+            <!-- Top bar -->
+            <div class="mx-3 px-3 py-2 rounded-2xl flex items-center justify-between" style="background: rgba(15,23,42,0.55); backdrop-filter: blur(24px); border: 1px solid rgba(255,255,255,0.10);">
+              <div class="flex items-center gap-2 min-w-0">
+                <span class="text-base">🚶</span>
+                <div class="min-w-0">
+                  <div class="text-sm font-semibold truncate">卧室</div>
+                  <div class="text-[10px] text-white/50 truncate">by @zhi</div>
+                </div>
+              </div>
+              <button class="text-white/60 w-8 h-8 rounded-lg flex items-center justify-center text-lg">⋮</button>
+            </div>
+
+            <!-- Loading indicator -->
+            <div class="absolute top-24 left-1/2 -translate-x-1/2">
+              <div class="rounded-full px-3 py-1.5 flex items-center gap-2 text-[11px]" style="background: rgba(15,23,42,0.55); backdrop-filter: blur(24px); border: 1px solid rgba(255,255,255,0.10);">
+                <div class="w-2.5 h-2.5 border-2 border-white/20 border-t-cyan-400 rounded-full animate-spin"></div>
+                <span class="text-white/80">加载 12 MB</span>
+                <span class="text-white/40">62%</span>
+              </div>
+            </div>
+
+            <!-- Center 3D label -->
+            <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <div class="text-center">
+                <div class="text-white/25 text-sm mb-1">3D 漫游画布</div>
+                <div class="text-white/15 text-[10px]">站位</div>
+              </div>
+            </div>
+
+            <!-- Virtual joystick -->
+            <div class="absolute bottom-32 left-1/2 -translate-x-1/2 z-10">
+              <div class="w-24 h-24 rounded-full flex items-center justify-center relative" style="background: rgba(15,23,42,0.55); backdrop-filter: blur(24px); border: 1px solid rgba(255,255,255,0.10);">
+                <div class="absolute inset-3 rounded-full border border-white/15"></div>
+                <div class="w-10 h-10 rounded-full bg-white/20 border border-white/30 shadow-lg"></div>
+              </div>
+              <div class="text-[10px] text-white/30 text-center mt-1">虚拟摇杆</div>
+            </div>
+
+            <!-- Brand link -->
+            <div class="absolute bottom-12 right-4">
+              <div class="rounded-full px-2.5 py-1 text-[10px] text-white/60 flex items-center gap-1" style="background: rgba(15,23,42,0.55); backdrop-filter: blur(24px); border: 1px solid rgba(255,255,255,0.10);">
+                <span>🚶</span><span>Roam ↗</span>
+              </div>
+            </div>
+
+            <div class="home-indicator home-indicator-light"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ========== P6 Help (mobile) ========== -->
+      <div>
+        <div class="text-xs uppercase tracking-widest text-[#8B5CF6] mb-3 font-semibold">P6 · 帮助文档</div>
+        <div class="phone">
+          <div class="phone-screen phone-bg-purple overflow-hidden">
+            <div class="notch"></div>
+            <div class="status-bar"><span>9:41</span><span>●●●●● 5G</span></div>
+
+            <!-- Top bar -->
+            <div class="px-5 py-3 flex items-center gap-3">
+              <button class="w-9 h-9 glass rounded-xl flex items-center justify-center">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+              </button>
+              <div class="flex-1 text-sm font-medium">帮助文档</div>
+              <button class="w-9 h-9 glass rounded-xl flex items-center justify-center">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+              </button>
+            </div>
+
+            <!-- Collapsible TOC -->
+            <div class="mx-5 mb-4 glass rounded-xl p-3 text-xs">
+              <div class="text-[10px] uppercase tracking-widest text-[#8B5CF6] font-semibold mb-1">目录</div>
+              <div class="text-[#52525B] truncate">1. Roam 是什么 · 2. 扫描 · 3. 训练 …</div>
+            </div>
+
+            <article class="px-5 overflow-y-auto" style="max-height: 480px;">
+              <div class="text-[10px] uppercase tracking-widest text-[#8B5CF6] mb-2 font-semibold">帮助文档</div>
+              <h1 class="text-2xl font-semibold tracking-tight leading-tight mb-2">如何制作可漫游的 3D 场景</h1>
+              <p class="text-xs text-[#71717A] mb-5">从手机扫描到公开链接,约 30 分钟</p>
+
+              <h2 class="text-base font-semibold mb-2">Roam 是什么</h2>
+              <p class="text-xs text-[#52525B] leading-relaxed mb-3">Roam 是一个 3DGS 场景分享平台。你扫描一个真实空间,获得一条公开链接。</p>
+              <p class="text-xs text-[#52525B] leading-relaxed mb-4">核心约束:<strong class="text-[#1A1A2E]">单场景 ≤ 30 MB</strong>。</p>
+
+              <h2 class="text-base font-semibold mb-2">第 1 步:扫描房间</h2>
+              <p class="text-xs text-[#52525B] leading-relaxed mb-2">推荐 App:</p>
+              <ul class="text-xs text-[#52525B] pl-4 mb-3 space-y-1">
+                <li class="list-disc"><span class="text-[#8B5CF6] font-medium">KIRI</span> — 免费,质量稳</li>
+                <li class="list-disc"><span class="text-[#8B5CF6] font-medium">Polycam</span> — iOS 体验顺</li>
+              </ul>
+              <p class="text-xs text-[#52525B] leading-relaxed">…</p>
+            </article>
+
+            <div class="home-indicator"></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Mobile-specific design notes -->
+    <section class="glass rounded-3xl p-6 max-w-3xl mt-6">
+      <h2 class="text-base font-semibold mb-3">移动端关键设计差异</h2>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3 text-sm">
+        <div>
+          <div class="font-medium text-[#1A1A2E] mb-1">P2 我的场景</div>
+          <div class="text-[#52525B] text-xs leading-relaxed">顶部 nav 简化为 logo + 头像;上传按钮改成右下 FAB 浮球;底部固定 tab bar(场景 / 帮助 / 我的)</div>
+        </div>
+        <div>
+          <div class="font-medium text-[#1A1A2E] mb-1">P3 上传弹窗</div>
+          <div class="text-[#52525B] text-xs leading-relaxed">桌面是居中 modal,**移动改成底部 sheet**(顶部带 handle 拖把),iOS / Android 原生质感</div>
+        </div>
+        <div>
+          <div class="font-medium text-[#1A1A2E] mb-1">P4 场景详情</div>
+          <div class="text-[#52525B] text-xs leading-relaxed">公开链接的 [复制] / [打开] 按钮从桌面横排改成 2 列网格,触控目标 ≥ 44pt</div>
+        </div>
+        <div>
+          <div class="font-medium text-[#1A1A2E] mb-1">P5 公开浏览</div>
+          <div class="text-[#52525B] text-xs leading-relaxed">WASD 键盘指引隐藏;摇杆居中靠下,与拇指自然区域吻合;状态栏避让灵动岛</div>
+        </div>
+        <div>
+          <div class="font-medium text-[#1A1A2E] mb-1">P6 帮助文档</div>
+          <div class="text-[#52525B] text-xs leading-relaxed">桌面左侧 TOC 改成顶部 collapse 卡片,占用更少垂直空间</div>
+        </div>
+        <div>
+          <div class="font-medium text-[#1A1A2E] mb-1">全局</div>
+          <div class="text-[#52525B] text-xs leading-relaxed">触控目标 ≥ 44pt;Safe Area 避让灵动岛/Home indicator;按钮全宽优先;字号比桌面小 1-2 档</div>
+        </div>
+      </div>
+    </section>
+
+    <footer class="mt-10 pt-6 border-t border-[#E5E7EB] text-xs text-[#A1A1AA]">
+      静态原型 · 仅用于对齐布局 · 真实移动体验通过 P1~P6 的 Tailwind 响应式断点(< 640px)实现
+    </footer>
+  </div>
+</body>
+</html>

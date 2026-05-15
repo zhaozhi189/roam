@@ -3,11 +3,11 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-  <title>Roam · Hello WebView</title>
+  <title>Roam · M1 第 0 周 H9 测试中心</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html, body {
-      width: 100%; height: 100%; overflow: hidden;
+      width: 100%; min-height: 100%;
       font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", sans-serif;
       background:
         radial-gradient(ellipse at 15% 10%, rgba(139,92,246,0.18), transparent 50%),
@@ -15,98 +15,267 @@
         radial-gradient(ellipse at 50% 100%, rgba(6,182,212,0.10), transparent 50%),
         #050810;
       color: #F8FAFC;
-      display: flex; flex-direction: column; align-items: center; justify-content: center;
-      padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+      padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom) 0;
     }
-    .logo { font-size: 64px; margin-bottom: 24px; }
+    .wrap { max-width: 600px; margin: 0 auto; padding: 24px 20px; }
+    .header { text-align: center; margin-bottom: 24px; }
+    .logo { font-size: 48px; margin-bottom: 12px; }
     h1 {
-      font-size: 28px; font-weight: 600; letter-spacing: -0.02em;
+      font-size: 22px; font-weight: 600; letter-spacing: -0.02em;
       background: linear-gradient(135deg, #8B5CF6, #3B82F6, #06B6D4);
       -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
-      margin-bottom: 8px;
+      margin-bottom: 6px;
     }
-    .subtitle { font-size: 13px; color: rgba(255,255,255,0.5); margin-bottom: 32px; }
-    .info {
+    .subtitle { font-size: 12px; color: rgba(255,255,255,0.5); }
+
+    .card {
       background: rgba(255,255,255,0.05);
       backdrop-filter: blur(12px);
       border: 1px solid rgba(255,255,255,0.10);
       border-radius: 16px;
-      padding: 20px 24px;
-      max-width: 90%;
+      padding: 18px 20px;
+      margin-bottom: 14px;
       font-size: 13px;
-      line-height: 1.7;
-      color: rgba(255,255,255,0.75);
+      line-height: 1.65;
+      color: rgba(255,255,255,0.78);
     }
-    .info code {
-      background: rgba(139,92,246,0.15); color: #C4B5FD;
-      padding: 2px 6px; border-radius: 4px;
-      font-family: ui-monospace, "SF Mono", Menlo, monospace;
-      font-size: 12px;
-    }
-    .info-row { display: flex; gap: 8px; align-items: center; margin: 4px 0; }
-    .check { color: #06B6D4; font-weight: 600; }
-    .pending { color: #F59E0B; }
-    button {
-      margin-top: 20px;
+    .card h2 { font-size: 15px; color: #F8FAFC; margin-bottom: 8px; font-weight: 600; }
+    .card .meta { font-size: 11px; color: rgba(255,255,255,0.4); margin-bottom: 12px; }
+    .card .status { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: 600; margin-left: 6px; }
+    .status-pending { background: rgba(245,158,11,0.15); color: #FCD34D; }
+    .status-ready { background: rgba(6,182,212,0.15); color: #67E8F9; }
+    .status-blocked { background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.4); }
+    .status-error { background: rgba(239,68,68,0.15); color: #F87171; }
+
+    button, .btn {
+      display: block; width: 100%;
       background: linear-gradient(135deg, #8B5CF6, #3B82F6);
-      color: white; border: none; padding: 12px 24px;
-      border-radius: 12px; font-size: 14px; font-weight: 600;
-      box-shadow: 0 8px 20px rgba(139,92,246,0.30);
+      color: white; border: none; padding: 11px 16px;
+      border-radius: 10px; font-size: 13px; font-weight: 600;
+      box-shadow: 0 6px 16px rgba(139,92,246,0.25);
+      text-decoration: none; text-align: center; cursor: pointer;
+      margin-top: 4px;
     }
-    .stats {
-      position: fixed; top: 16px; right: 16px;
-      background: rgba(255,255,255,0.08); backdrop-filter: blur(12px);
+    .btn-secondary {
+      background: rgba(255,255,255,0.08);
+      box-shadow: none;
       border: 1px solid rgba(255,255,255,0.12);
-      padding: 6px 10px; border-radius: 8px;
-      font-size: 11px; font-family: ui-monospace, monospace;
-      color: rgba(255,255,255,0.7);
     }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* PlayCanvas 内嵌测试区 */
+    #pc-canvas-wrap {
+      width: 100%; height: 280px;
+      background: linear-gradient(135deg, #1a2440, #0a0f1e);
+      border: 1px dashed rgba(139,92,246,0.30);
+      border-radius: 12px;
+      margin-top: 12px;
+      position: relative;
+      overflow: hidden;
+    }
+    #pc-canvas { width: 100%; height: 100%; display: block; }
+    #pc-status {
+      position: absolute; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      flex-direction: column; gap: 8px;
+      font-size: 12px; color: rgba(255,255,255,0.5);
+      pointer-events: none;
+    }
+    #pc-fps {
+      position: absolute; top: 8px; right: 8px;
+      background: rgba(0,0,0,0.5); backdrop-filter: blur(8px);
+      padding: 4px 8px; border-radius: 6px;
+      font-size: 11px; font-family: ui-monospace, monospace;
+      color: #67E8F9;
+    }
+
+    .env-info {
+      font-size: 11px;
+      font-family: ui-monospace, "SF Mono", Menlo, monospace;
+      color: rgba(255,255,255,0.5);
+      line-height: 1.7;
+    }
+    .env-info .row { display: flex; gap: 8px; }
+    .env-info .key { color: rgba(255,255,255,0.4); min-width: 90px; }
+    .env-info .val { color: rgba(255,255,255,0.7); flex: 1; word-break: break-all; }
+    .env-info .val.err { color: #F87171; }
   </style>
 </head>
 <body>
-  <div class="stats" id="stats">FPS: --</div>
+  <div class="wrap">
+    <div class="header">
+      <div class="logo">🚶</div>
+      <h1>Roam M1 第 0 周</h1>
+      <div class="subtitle">H9 验证中心 · WebView 内 PlayCanvas + SPZ</div>
+    </div>
 
-  <div class="logo">🚶</div>
-  <h1>Roam · Hello WebView</h1>
-  <div class="subtitle">M1 第 0 周 · WebView 套壳已就位</div>
+    <!-- Test 1: H9a 在线 demo -->
+    <div class="card">
+      <h2>① H9a · 在线 PlayCanvas FPS Demo <span class="status status-ready">CDN ready</span></h2>
+      <div class="meta">直接打开 H1/H2 已验证流畅的官方 demo,看 WebView 是否同等流畅</div>
+      <a href="https://playcanv.as/p/qxGSuzYq/" class="btn">打开在线 demo →</a>
+    </div>
 
-  <div class="info">
-    <div class="info-row"><span class="check">✓</span> Compose AndroidView 加载 WebView</div>
-    <div class="info-row"><span class="check">✓</span> JavaScript 启用</div>
-    <div class="info-row"><span class="check">✓</span> file:///android_asset/ 协议</div>
-    <div class="info-row"><span class="check">✓</span> CSS gradient + backdrop-filter 渲染</div>
-    <div class="info-row"><span class="pending">⏳</span> 下一步:H9a 加 PlayCanvas + WebGL 测试</div>
-    <div class="info-row"><span class="pending">⏳</span> 下一步:H9b 加 <code>@spz-loader/playcanvas</code> 加载 .spz</div>
+    <!-- Test 2: H9a 本地 PlayCanvas 立方体 -->
+    <div class="card">
+      <h2>② H9a · 本地 PlayCanvas 立方体 <span class="status status-pending" id="pc-badge">CDN 加载中…</span></h2>
+      <div class="meta">CDN 加载 playcanvas@latest,创建简单 3D 场景验证 WebGL + 引擎可用</div>
+      <button id="pc-start" disabled>启动 PlayCanvas 场景</button>
+      <div id="pc-canvas-wrap">
+        <canvas id="pc-canvas"></canvas>
+        <div id="pc-status">点上方按钮启动</div>
+        <div id="pc-fps" style="display:none">FPS: --</div>
+      </div>
+    </div>
+
+    <!-- Test 3: H9b SPZ 加载 -->
+    <div class="card">
+      <h2>③ H9b · @spz-loader 加载 SPZ <span class="status status-blocked">待 SPZ 文件</span></h2>
+      <div class="meta">需要先有一个 .spz 文件(用 Scaniverse 扫一个,或公开示例)。M1 后续接 SAF 选文件</div>
+      <a href="#" class="btn btn-secondary" id="spz-info-btn">查看接入说明</a>
+    </div>
+
+    <!-- WebView 环境信息 -->
+    <div class="card">
+      <h2>WebView 环境</h2>
+      <div class="env-info" id="env-info">检测中…</div>
+    </div>
   </div>
 
-  <button onclick="alert('JS Bridge 还没接,只是 WebView 内 JS 跑通了')">点我测 JS</button>
+  <!-- PlayCanvas Engine from CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/playcanvas@2/build/playcanvas.min.js"
+          onload="onPcLoaded()" onerror="onPcError()"></script>
 
   <script>
-    // 简单 FPS 计数器(浏览器端)
-    let lastTime = performance.now();
-    let frames = 0;
-    function tick() {
-      frames++;
-      const now = performance.now();
-      if (now - lastTime >= 1000) {
-        document.getElementById('stats').textContent = 'FPS: ' + frames;
-        frames = 0;
-        lastTime = now;
-      }
-      requestAnimationFrame(tick);
-    }
-    requestAnimationFrame(tick);
-
-    // 输出环境信息到 console.log(adb logcat 可见)
-    console.log('[Roam] WebView booted at', new Date().toISOString());
-    console.log('[Roam] UA:', navigator.userAgent);
-    console.log('[Roam] WebGL:', (() => {
+    // ====== 环境信息收集(用 DOM API,避免 innerHTML XSS 风险)======
+    function gatherEnv() {
+      const info = [];
+      info.push(['UA', navigator.userAgent, false]);
+      info.push(['Pixel ratio', String(window.devicePixelRatio), false]);
+      info.push(['Screen', screen.width + ' × ' + screen.height, false]);
+      info.push(['Viewport', innerWidth + ' × ' + innerHeight, false]);
       try {
         const c = document.createElement('canvas');
-        const gl = c.getContext('webgl2') || c.getContext('webgl');
-        return gl ? gl.getParameter(gl.VERSION) : 'NOT AVAILABLE';
-      } catch (e) { return 'ERROR: ' + e.message; }
-    })());
+        const gl2 = c.getContext('webgl2');
+        const gl = gl2 || c.getContext('webgl');
+        if (gl) {
+          info.push(['WebGL Version', gl.getParameter(gl.VERSION), false]);
+          info.push(['Renderer', gl.getParameter(gl.RENDERER), false]);
+          const dbg = gl.getExtension('WEBGL_debug_renderer_info');
+          if (dbg) {
+            info.push(['Unmasked Renderer', gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL), false]);
+            info.push(['Unmasked Vendor', gl.getParameter(dbg.UNMASKED_VENDOR_WEBGL), false]);
+          }
+          info.push(['Max Texture', String(gl.getParameter(gl.MAX_TEXTURE_SIZE)), false]);
+          info.push(['WebGL2', gl2 ? 'yes' : 'no(只有 WebGL1)', !gl2]);
+        } else {
+          info.push(['WebGL', 'NOT AVAILABLE', true]);
+        }
+      } catch (e) {
+        info.push(['WebGL Error', e.message, true]);
+      }
+      const el = document.getElementById('env-info');
+      while (el.firstChild) el.removeChild(el.firstChild);
+      info.forEach((tuple) => {
+        const k = tuple[0], v = tuple[1], isErr = tuple[2];
+        const row = document.createElement('div');
+        row.className = 'row';
+        const keySpan = document.createElement('span');
+        keySpan.className = 'key';
+        keySpan.textContent = k;
+        const valSpan = document.createElement('span');
+        valSpan.className = isErr ? 'val err' : 'val';
+        valSpan.textContent = v;
+        row.appendChild(keySpan);
+        row.appendChild(valSpan);
+        el.appendChild(row);
+      });
+      console.log('[Roam] Env collected,', info.length, 'rows');
+    }
+
+    // ====== PlayCanvas CDN 加载完毕回调 ======
+    function onPcLoaded() {
+      const status = document.getElementById('pc-status');
+      status.textContent = 'PlayCanvas ' + pc.version + ' 已就绪,点上方按钮启动';
+      const badge = document.getElementById('pc-badge');
+      badge.textContent = '✓ ' + pc.version;
+      badge.className = 'status status-ready';
+      const btn = document.getElementById('pc-start');
+      btn.disabled = false;
+      btn.addEventListener('click', startPlayCanvasScene);
+      console.log('[Roam] PlayCanvas loaded:', pc.version);
+    }
+    function onPcError() {
+      const status = document.getElementById('pc-status');
+      status.textContent = '❌ PlayCanvas CDN 加载失败(检查网络)';
+      const badge = document.getElementById('pc-badge');
+      badge.textContent = '✗ CDN 失败';
+      badge.className = 'status status-error';
+      console.error('[Roam] PlayCanvas CDN load failed');
+    }
+
+    // ====== 启动 PlayCanvas 立方体场景 ======
+    let pcApp = null;
+    function startPlayCanvasScene() {
+      const canvas = document.getElementById('pc-canvas');
+      const status = document.getElementById('pc-status');
+      const fpsEl = document.getElementById('pc-fps');
+      status.style.display = 'none';
+      fpsEl.style.display = 'block';
+
+      pcApp = new pc.Application(canvas, {});
+      pcApp.setCanvasFillMode(pc.FILLMODE_FILL_WINDOW);
+      pcApp.setCanvasResolution(pc.RESOLUTION_AUTO);
+
+      // 旋转立方体
+      const box = new pc.Entity('cube');
+      box.addComponent('model', { type: 'box' });
+      pcApp.root.addChild(box);
+
+      // 摄像机
+      const camera = new pc.Entity('camera');
+      camera.addComponent('camera', { clearColor: new pc.Color(0.04, 0.06, 0.12) });
+      camera.setPosition(0, 0, 3);
+      pcApp.root.addChild(camera);
+
+      // 灯光
+      const light = new pc.Entity('light');
+      light.addComponent('light');
+      light.setEulerAngles(45, 30, 0);
+      pcApp.root.addChild(light);
+
+      // 旋转 + FPS 统计
+      let frames = 0;
+      let lastT = performance.now();
+      pcApp.on('update', (dt) => {
+        box.rotate(20 * dt, 30 * dt, 0);
+        frames++;
+        const now = performance.now();
+        if (now - lastT >= 1000) {
+          fpsEl.textContent = 'FPS: ' + frames;
+          frames = 0; lastT = now;
+        }
+      });
+
+      pcApp.start();
+      console.log('[Roam] PlayCanvas scene started');
+    }
+
+    // ====== H9b SPZ 接入说明 ======
+    document.getElementById('spz-info-btn').addEventListener('click', (e) => {
+      e.preventDefault();
+      alert('未来步骤(M1 第 0 周后段):\n\n' +
+            '1. Kotlin 端用 Storage Access Framework 让用户选 .spz\n' +
+            '2. JS Bridge 把 file:// URI 传给前端\n' +
+            '3. import { createGSplatEntityFromSpzUrlAsync } from "@spz-loader/playcanvas"\n' +
+            '4. const entity = await createGSplatEntityFromSpzUrlAsync(app, url)\n' +
+            '5. app.root.addChild(entity)\n\n' +
+            '现在 SPZ 文件还没有,等 Scaniverse 扫一个再做这一步');
+    });
+
+    // 启动:先收集环境
+    gatherEnv();
+    console.log('[Roam] WebView booted at', new Date().toISOString());
   </script>
 </body>
 </html>

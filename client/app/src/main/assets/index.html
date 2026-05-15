@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>Roam · Hello WebView</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+      width: 100%; height: 100%; overflow: hidden;
+      font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", sans-serif;
+      background:
+        radial-gradient(ellipse at 15% 10%, rgba(139,92,246,0.18), transparent 50%),
+        radial-gradient(ellipse at 85% 90%, rgba(59,130,246,0.14), transparent 50%),
+        radial-gradient(ellipse at 50% 100%, rgba(6,182,212,0.10), transparent 50%),
+        #050810;
+      color: #F8FAFC;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+    }
+    .logo { font-size: 64px; margin-bottom: 24px; }
+    h1 {
+      font-size: 28px; font-weight: 600; letter-spacing: -0.02em;
+      background: linear-gradient(135deg, #8B5CF6, #3B82F6, #06B6D4);
+      -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+      margin-bottom: 8px;
+    }
+    .subtitle { font-size: 13px; color: rgba(255,255,255,0.5); margin-bottom: 32px; }
+    .info {
+      background: rgba(255,255,255,0.05);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255,255,255,0.10);
+      border-radius: 16px;
+      padding: 20px 24px;
+      max-width: 90%;
+      font-size: 13px;
+      line-height: 1.7;
+      color: rgba(255,255,255,0.75);
+    }
+    .info code {
+      background: rgba(139,92,246,0.15); color: #C4B5FD;
+      padding: 2px 6px; border-radius: 4px;
+      font-family: ui-monospace, "SF Mono", Menlo, monospace;
+      font-size: 12px;
+    }
+    .info-row { display: flex; gap: 8px; align-items: center; margin: 4px 0; }
+    .check { color: #06B6D4; font-weight: 600; }
+    .pending { color: #F59E0B; }
+    button {
+      margin-top: 20px;
+      background: linear-gradient(135deg, #8B5CF6, #3B82F6);
+      color: white; border: none; padding: 12px 24px;
+      border-radius: 12px; font-size: 14px; font-weight: 600;
+      box-shadow: 0 8px 20px rgba(139,92,246,0.30);
+    }
+    .stats {
+      position: fixed; top: 16px; right: 16px;
+      background: rgba(255,255,255,0.08); backdrop-filter: blur(12px);
+      border: 1px solid rgba(255,255,255,0.12);
+      padding: 6px 10px; border-radius: 8px;
+      font-size: 11px; font-family: ui-monospace, monospace;
+      color: rgba(255,255,255,0.7);
+    }
+  </style>
+</head>
+<body>
+  <div class="stats" id="stats">FPS: --</div>
+
+  <div class="logo">🚶</div>
+  <h1>Roam · Hello WebView</h1>
+  <div class="subtitle">M1 第 0 周 · WebView 套壳已就位</div>
+
+  <div class="info">
+    <div class="info-row"><span class="check">✓</span> Compose AndroidView 加载 WebView</div>
+    <div class="info-row"><span class="check">✓</span> JavaScript 启用</div>
+    <div class="info-row"><span class="check">✓</span> file:///android_asset/ 协议</div>
+    <div class="info-row"><span class="check">✓</span> CSS gradient + backdrop-filter 渲染</div>
+    <div class="info-row"><span class="pending">⏳</span> 下一步:H9a 加 PlayCanvas + WebGL 测试</div>
+    <div class="info-row"><span class="pending">⏳</span> 下一步:H9b 加 <code>@spz-loader/playcanvas</code> 加载 .spz</div>
+  </div>
+
+  <button onclick="alert('JS Bridge 还没接,只是 WebView 内 JS 跑通了')">点我测 JS</button>
+
+  <script>
+    // 简单 FPS 计数器(浏览器端)
+    let lastTime = performance.now();
+    let frames = 0;
+    function tick() {
+      frames++;
+      const now = performance.now();
+      if (now - lastTime >= 1000) {
+        document.getElementById('stats').textContent = 'FPS: ' + frames;
+        frames = 0;
+        lastTime = now;
+      }
+      requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+
+    // 输出环境信息到 console.log(adb logcat 可见)
+    console.log('[Roam] WebView booted at', new Date().toISOString());
+    console.log('[Roam] UA:', navigator.userAgent);
+    console.log('[Roam] WebGL:', (() => {
+      try {
+        const c = document.createElement('canvas');
+        const gl = c.getContext('webgl2') || c.getContext('webgl');
+        return gl ? gl.getParameter(gl.VERSION) : 'NOT AVAILABLE';
+      } catch (e) { return 'ERROR: ' + e.message; }
+    })());
+  </script>
+</body>
+</html>

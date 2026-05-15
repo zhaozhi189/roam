@@ -28,6 +28,7 @@
     .prose-roam a:not(.btn-primary) { color: #8B5CF6; text-decoration: underline; text-underline-offset: 3px; font-weight: 500; }
     .prose-roam a:not(.btn-primary):hover { color: #7C3AED; }
     .prose-roam strong { color: #1A1A2E; font-weight: 600; }
+    .step-num { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; background: linear-gradient(135deg, #8B5CF6, #3B82F6); color: white; border-radius: 999px; font-size: 13px; font-weight: 600; margin-right: 8px; vertical-align: middle; }
   </style>
 </head>
 <body>
@@ -36,7 +37,7 @@
     <a href="index.html" class="flex items-center gap-2"><span class="text-xl">🚶</span><span class="font-semibold tracking-tight">Roam</span></a>
     <div class="flex items-center gap-2">
       <a href="p2-dashboard.html" class="text-sm text-[#52525B] hover:text-[#1A1A2E] px-3 py-2 rounded-xl hover:bg-white/60">我的场景</a>
-      <a href="p1-landing.html" class="btn-primary text-sm font-medium px-4 py-2 rounded-xl">登录</a>
+      <a href="p1-landing.html" class="btn-primary text-sm font-medium px-4 py-2 rounded-xl">下载 Roam APK</a>
     </div>
   </nav>
 
@@ -46,10 +47,11 @@
         <div class="text-xs uppercase tracking-widest text-[#8B5CF6] mb-3 font-semibold">目录</div>
         <ul class="space-y-1 text-[#52525B]">
           <li><a href="#what" class="hover:text-[#1A1A2E] block py-1.5 hover:bg-white/60 rounded-lg px-2 -mx-2 transition">Roam 是什么</a></li>
-          <li><a href="#scan" class="hover:text-[#1A1A2E] block py-1.5 hover:bg-white/60 rounded-lg px-2 -mx-2 transition">第 1 步:扫描房间</a></li>
-          <li><a href="#train" class="hover:text-[#1A1A2E] block py-1.5 hover:bg-white/60 rounded-lg px-2 -mx-2 transition">第 2 步:训练 3DGS</a></li>
-          <li><a href="#compress" class="hover:text-[#1A1A2E] block py-1.5 hover:bg-white/60 rounded-lg px-2 -mx-2 transition">第 3 步:压缩 .sog</a></li>
-          <li><a href="#upload" class="hover:text-[#1A1A2E] block py-1.5 hover:bg-white/60 rounded-lg px-2 -mx-2 transition">第 4 步:上传分享</a></li>
+          <li><a href="#install" class="hover:text-[#1A1A2E] block py-1.5 hover:bg-white/60 rounded-lg px-2 -mx-2 transition">第 1 步:装 Roam</a></li>
+          <li><a href="#scan" class="hover:text-[#1A1A2E] block py-1.5 hover:bg-white/60 rounded-lg px-2 -mx-2 transition">第 2 步:扫描房间</a></li>
+          <li><a href="#import" class="hover:text-[#1A1A2E] block py-1.5 hover:bg-white/60 rounded-lg px-2 -mx-2 transition">第 3 步:导入到 Roam</a></li>
+          <li><a href="#roam" class="hover:text-[#1A1A2E] block py-1.5 hover:bg-white/60 rounded-lg px-2 -mx-2 transition">第 4 步:漫游 + 录视频</a></li>
+          <li><a href="#share" class="hover:text-[#1A1A2E] block py-1.5 hover:bg-white/60 rounded-lg px-2 -mx-2 transition">第 5 步:微信分享</a></li>
           <li><a href="#faq" class="hover:text-[#1A1A2E] block py-1.5 hover:bg-white/60 rounded-lg px-2 -mx-2 transition">常见问题</a></li>
         </ul>
       </div>
@@ -59,57 +61,85 @@
       <header class="mb-2">
         <div class="text-xs uppercase tracking-widest text-[#8B5CF6] mb-3 font-semibold">帮助文档</div>
         <h1 class="text-3xl sm:text-4xl md:text-5xl font-semibold tracking-tight leading-tight">如何制作可漫游的 3D 场景</h1>
-        <p class="text-base text-[#71717A] mt-3">从手机扫描到公开链接,大约需要 30 分钟。本文档随 MVP 持续更新。</p>
+        <p class="text-base text-[#71717A] mt-3">从手机扫描到微信视频分享,全程在手机上完成,大约 30 分钟。本文档随 MVP 持续更新。</p>
       </header>
 
       <section id="what">
         <h2>Roam 是什么</h2>
-        <p>Roam 是一个 3DGS(3D Gaussian Splatting)场景分享平台。你扫描一个真实空间(比如卧室、咖啡馆、展览),Roam 把它变成一条公开链接,任何人在手机或电脑上都能直接漫游。</p>
-        <p>核心约束:<strong>单场景 ≤ 30 MB</strong>,只支持已压缩的 <code>.sog</code> / <code>.compressed.ply</code>。原始 <code>.ply</code> 通常上百 MB,我们不接受。</p>
+        <p>Roam 是一款 <strong>Android 单机 App</strong>,把你扫描的真实空间(卧室、咖啡馆、展览等)变成可在手机里漫游的 3D 场景,**录视频发微信**给朋友看。</p>
+        <p>核心约束:</p>
+        <ul>
+          <li>仅支持 <strong>Android</strong>(MVP 阶段不做 iOS)</li>
+          <li>仅支持 <code>.spz</code> 文件(Niantic Scaniverse 直出格式,~10MB / 场景)</li>
+          <li>本地存储,<strong>不上传任何云</strong>,不需要登录</li>
+          <li>分享是录视频微信发,接收方看视频不漫游(Phase 2 考虑公网链接)</li>
+        </ul>
+      </section>
+
+      <section id="install">
+        <h2><span class="step-num">1</span>装 Roam APK</h2>
+        <p>从 GitHub Release 或 zhi 直接发你的 APK 下载到 Magic7 Pro 或同代 Android 旗舰(骁龙 8 Gen 系列 / 天玑 9000 系列)。</p>
+        <ul>
+          <li>系统要求:Android 10+,WebView 系统版本 ≥ 100</li>
+          <li>装上后会提示「未知来源安装」,选「允许」</li>
+          <li>首次启动会请求<strong>存储权限</strong>(读 .spz 文件)和<strong>录屏权限</strong>(录视频)</li>
+        </ul>
+        <p>⚠️ 中端机 / 千元机 MVP 不保证流畅,见 [03 § 六 性能关键点](../doc/03-技术架构.md)</p>
       </section>
 
       <section id="scan">
-        <h2>第 1 步:扫描房间</h2>
-        <p>推荐 App(任选一个):</p>
+        <h2><span class="step-num">2</span>扫描房间</h2>
+        <p>推荐 <a href="https://scaniverse.com" target="_blank">Scaniverse</a>(Niantic 出品,免费,Android 原生支持):</p>
         <ul>
-          <li><a href="#">KIRI Engine</a> — Android / iOS 都好用,免费,质量稳</li>
-          <li><a href="#">Polycam</a> — iOS 优势,扫描手感更顺</li>
-          <li><a href="#">Luma AI</a> — 训练自动化做得最好</li>
+          <li>Play Store 在国内不可用 → 用 APKPure / Uptodown 镜像下 APK</li>
+          <li>App 内选 <strong>Splat</strong> 模式(不要选 Mesh)</li>
+          <li>绕着空间走一圈拍照,设备端 60-90 秒处理出 splat 场景</li>
+          <li>导出格式选 <strong>SPZ</strong>(Niantic 开源,~10MB,Roam 唯一支持的格式)</li>
         </ul>
         <h3>扫描技巧</h3>
         <ul>
-          <li>光照均匀:避免逆光、强阴影</li>
-          <li>慢速移动:手机每秒移动 ≤ 30cm</li>
-          <li>多角度:每个物体至少绕 180°</li>
-          <li>纹理丰富区域优先,纯白墙 / 玻璃尽量少</li>
+          <li><strong>光照均匀</strong>:避免逆光、强阴影</li>
+          <li><strong>慢速移动</strong>:每秒移动 ≤ 30 cm</li>
+          <li><strong>多角度</strong>:每个物体至少绕 180°</li>
+          <li><strong>纹理丰富优先</strong>,纯白墙 / 玻璃尽量少</li>
         </ul>
       </section>
 
-      <section id="train">
-        <h2>第 2 步:训练 3DGS</h2>
-        <p>如果你的扫描 App 直接输出 <code>.ply</code>(高斯泼溅格式),跳到第 3 步。否则用以下工具训练:</p>
+      <section id="import">
+        <h2><span class="step-num">3</span>导入到 Roam</h2>
+        <p>Scaniverse 导出的 <code>.spz</code> 文件默认在 <code>/sdcard/Download/</code> 或 <code>Scaniverse Exports</code> 目录。</p>
+        <ol class="list-decimal pl-5" style="margin-bottom: 1rem;">
+          <li style="line-height: 1.75; color: #52525B;">打开 Roam → 点右上角 <strong>+ 导入场景</strong></li>
+          <li style="line-height: 1.75; color: #52525B;">系统弹出文件选择器(Storage Access Framework)</li>
+          <li style="line-height: 1.75; color: #52525B;">选你的 <code>.spz</code> 文件 → 输入场景名 → 确认</li>
+          <li style="line-height: 1.75; color: #52525B;">Roam 把文件复制到 App 私有存储(几秒钟),场景出现在场景库</li>
+        </ol>
+        <p>支持的格式:<code>.spz</code> 单一格式。<strong>不支持</strong>原始 <code>.ply</code>(太大,几百 MB)、<code>.sog</code>(PlayCanvas 自家格式,M0 评估后不再使用)。</p>
+      </section>
+
+      <section id="roam">
+        <h2><span class="step-num">4</span>漫游 + 录视频</h2>
+        <p>点开任意一个场景:</p>
         <ul>
-          <li><a href="#">postshot</a> — Windows 桌面端,所见即所得</li>
-          <li><a href="#">nerfstudio</a> — 开源命令行,需要 GPU</li>
+          <li>WebView + PlayCanvas + <code>@spz-loader/playcanvas</code> 加载 SPZ,~3 秒可漫游</li>
+          <li>左下角 <strong>虚拟摇杆</strong> 控制走动,右下区<strong>拖拽</strong>控制视角</li>
+          <li><strong>MVP 无物理碰撞</strong>(可穿墙) — 接收方看视频不感知,你自己别撞</li>
+          <li>找到喜欢的运镜路径,点底部 <strong>🔴 录制视频</strong> → 系统弹「即将开始捕获屏幕」对话框 → 允许</li>
+          <li>录制中顶部有红色 REC 状态条 + 倒计时(默认 60s 上限,适配微信)</li>
+          <li>录完点停止 → MP4 自动保存到本地视频列表</li>
         </ul>
       </section>
 
-      <section id="compress">
-        <h2>第 3 步:压缩为 .sog</h2>
-        <p>原始 <code>.ply</code> 通常上百 MB,Roam 不接受。用 PlayCanvas 官方 <code>splat-transform</code> 压缩 5-20 倍:</p>
-        <div class="glass rounded-2xl p-4 my-4">
-          <pre class="text-sm overflow-x-auto"><code style="background:transparent;padding:0;color:#1A1A2E;font-size:0.875rem;"><span style="color:#71717A;"># 安装(Node ≥ 18)</span>
-npm install -g @playcanvas/splat-transform
-
-<span style="color:#71717A;"># 压缩</span>
-splat-transform input.ply output.sog</code></pre>
-        </div>
-        <p>典型效果:120 MB → 8 MB(<a href="#">查看对比 demo</a>)。</p>
-      </section>
-
-      <section id="upload">
-        <h2>第 4 步:上传分享</h2>
-        <p>登录 → 「我的场景」 → 「+ 上传新场景」 → 拖入 <code>.sog</code> → 取名 → 完成。系统自动生成公开链接 <code>roam.app/s/xxx</code>。</p>
+      <section id="share">
+        <h2><span class="step-num">5</span>微信分享</h2>
+        <p>录完视频后:</p>
+        <ol class="list-decimal pl-5" style="margin-bottom: 1rem;">
+          <li style="line-height: 1.75; color: #52525B;">在场景详情页或漫游页底部点 <strong>分享</strong></li>
+          <li style="line-height: 1.75; color: #52525B;">Android 弹系统分享面板,列出已装的所有支持视频分享的 App</li>
+          <li style="line-height: 1.75; color: #52525B;">选 <strong>微信</strong> → 选「发送给朋友」/「分享到朋友圈」</li>
+          <li style="line-height: 1.75; color: #52525B;">朋友收到一段 60s 流畅运镜视频,**看着像 3D vlog 短视频**</li>
+        </ol>
+        <p>视频规格:1080p@30fps H.264 MP4,60 秒,文件 ≤ 25MB(微信最大限制)。</p>
         <div class="my-6">
           <a href="p2-dashboard.html" class="btn-primary font-medium px-5 py-3 rounded-2xl inline-block no-underline">前往我的场景 →</a>
         </div>
@@ -117,18 +147,25 @@ splat-transform input.ply output.sog</code></pre>
 
       <section id="faq">
         <h2>常见问题</h2>
-        <h3>为什么不接受原始 .ply?</h3>
-        <p>原始文件通常 100-500 MB。我们用 Cloudflare R2 免费额度起步,大文件会很快烧光配额。<code>.sog</code> 已经够清晰。</p>
 
-        <h3>为什么不做云端训练?</h3>
-        <p>MVP 阶段没有 GPU 预算,也不接 Polycam / Luma API。先把"看 + 分享"的体验做好,Phase 2 再考虑端到端扫描。</p>
+        <h3>为什么不接受原始 .ply 或 PlayCanvas 的 .sog?</h3>
+        <p>Roam MVP 用 <a href="https://github.com/nianticlabs/spz" target="_blank">Niantic SPZ 格式</a>:Scaniverse 直接导出,<code>@spz-loader/playcanvas</code> runtime 直接加载,**全程在手机闭环不需要离开 App**。原 <code>.sog</code> 路径需要电脑跑 SplatTransform 处理,体验断点(参见 doc/03 v0.3 Q7 关闭)。</p>
 
-        <h3>我可以把场景设为私有吗?</h3>
-        <p>MVP 不行。所有场景默认公开,通过短链 <code>/s/&lt;6-8 位&gt;</code> 访问(不被搜索引擎索引)。</p>
+        <h3>为什么没有公开链接?接收方能自己漫游吗?</h3>
+        <p>MVP 是<strong>纯本地版</strong>,没有云端,所以没有公开链接。接收方在微信看到的是视频,不能自己漫游。Phase 2 可能接入 Cloudflare 做公网版,让朋友扫码也能进 Roam 漫游。</p>
+
+        <h3>为什么不支持 iOS?</h3>
+        <p>个人项目控制范围。iOS 在 ADR-005 明确推迟。后续如果反响好,Phase 2 用 Capacitor / Tauri Mobile 做跨端。</p>
+
+        <h3>为什么不做云端训练 / 自动一键扫描?</h3>
+        <p>MVP 阶段没有 GPU 预算,也不接 Polycam / Luma API(WorkOS 在国内还有访问问题)。Scaniverse 设备端 60-90 秒处理就够日常用。</p>
+
+        <h3>漫游可以穿墙吗?</h3>
+        <p>MVP 是的,SPZ 不带碰撞体,Roam 暂不计算软碰撞。**你自己别撞墙就行**,录视频时按设计运镜路线走。Phase 2 视情况上 PlayCanvas raycaster 软碰撞(参见 Q8 决策)。</p>
       </section>
 
       <footer class="mt-16 pt-6 border-t border-black/5 text-sm text-[#71717A]">
-        本文档最后更新:2026-05-12 · <a href="#">在 GitHub 编辑</a>
+        本文档最后更新:2026-05-15 · v0.2 适配本地 + SPZ 方向
       </footer>
     </article>
   </div>

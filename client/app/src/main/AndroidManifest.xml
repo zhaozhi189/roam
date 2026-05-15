@@ -6,6 +6,11 @@
          M2 阶段把依赖 vendor 进 assets/ 后可移除此权限。 -->
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!-- H7 MediaProjection 录全屏(Android 14+ 强制 ForegroundService) -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
     <application
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
@@ -26,6 +31,23 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- H7 录屏 ForegroundService -->
+        <service
+            android:name=".ScreenRecorderService"
+            android:foregroundServiceType="mediaProjection"
+            android:exported="false" />
+
+        <!-- H8 Share Intent 用,FileProvider 暴露 internal storage 视频文件给微信/其他 App -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
     </application>
 
 </manifest>

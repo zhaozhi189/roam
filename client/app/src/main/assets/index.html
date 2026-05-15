@@ -136,6 +136,18 @@
       <div id="spz-result" style="display:none; margin-top:12px; font-family:ui-monospace,monospace; font-size:11px; color:rgba(255,255,255,0.7); word-break:break-all; padding:10px 12px; background:rgba(6,182,212,0.08); border:1px solid rgba(6,182,212,0.20); border-radius:8px;"></div>
     </div>
 
+    <!-- Test 4: H7 + H8 录屏 + 微信分享 -->
+    <div class="card">
+      <h2>④ H7+H8 · 录屏 + Share Intent <span class="status status-pending" id="rec-badge">待真机授权</span></h2>
+      <div class="meta">点「开始录屏」弹 MediaProjection 系统权限 → 允许后录全屏 → 停止 → 视频列表点「分享微信」调系统面板</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;">
+        <button id="rec-start-btn">🔴 开始录屏</button>
+        <button id="rec-stop-btn" disabled style="background:rgba(255,255,255,0.08);box-shadow:none;border:1px solid rgba(255,255,255,0.12);">⏹ 停止录屏</button>
+      </div>
+      <button id="rec-list-btn" style="margin-top:8px;background:rgba(255,255,255,0.08);box-shadow:none;border:1px solid rgba(255,255,255,0.12);">刷新本地视频列表</button>
+      <div id="rec-list" style="margin-top:10px;font-size:11px;font-family:ui-monospace,monospace;color:rgba(255,255,255,0.7);"></div>
+    </div>
+
     <!-- WebView 环境信息 -->
     <div class="card">
       <h2>WebView 环境</h2>
@@ -310,6 +322,101 @@
         console.warn('[Roam] nativeInfo parse failed:', e);
       }
     }
+
+    // ====== H7 + H8 录屏 + 分享 ======
+    const recStartBtn = document.getElementById('rec-start-btn');
+    const recStopBtn = document.getElementById('rec-stop-btn');
+    const recListBtn = document.getElementById('rec-list-btn');
+    const recList = document.getElementById('rec-list');
+    const recBadge = document.getElementById('rec-badge');
+
+    if (!hasBridge) {
+      recStartBtn.disabled = true;
+      recStopBtn.disabled = true;
+      recListBtn.disabled = true;
+      recBadge.textContent = '✗ Bridge 未注入';
+      recBadge.className = 'status status-error';
+    }
+
+    recStartBtn.addEventListener('click', () => {
+      if (!hasBridge) return;
+      console.log('[Roam] 调 RoamBridge.startRecording()');
+      window.RoamBridge.startRecording();
+    });
+
+    recStopBtn.addEventListener('click', () => {
+      if (!hasBridge) return;
+      window.RoamBridge.stopRecording();
+      recStopBtn.disabled = true;
+      recStartBtn.disabled = false;
+      recBadge.textContent = '已停止';
+      recBadge.className = 'status status-ready';
+      // 等 MediaRecorder 落盘,再刷新列表
+      setTimeout(refreshRecList, 600);
+    });
+
+    recListBtn.addEventListener('click', refreshRecList);
+
+    // Kotlin 端启动录制后回调
+    window.onRecordingStarted = function () {
+      console.log('[Roam] onRecordingStarted');
+      recStartBtn.disabled = true;
+      recStopBtn.disabled = false;
+      recBadge.textContent = '🔴 录制中';
+      recBadge.className = 'status status-error';
+    };
+    window.onRecordingDenied = function () {
+      console.warn('[Roam] onRecordingDenied');
+      recBadge.textContent = '✗ 用户拒绝';
+      recBadge.className = 'status status-error';
+    };
+
+    function refreshRecList() {
+      if (!hasBridge || !window.RoamBridge.listRecordings) return;
+      while (recList.firstChild) recList.removeChild(recList.firstChild);
+      let items;
+      try {
+        items = JSON.parse(window.RoamBridge.listRecordings());
+      } catch (e) {
+        const err = document.createElement('div');
+        err.textContent = '解析失败: ' + e.message;
+        recList.appendChild(err);
+        return;
+      }
+      if (!items.length) {
+        const empty = document.createElement('div');
+        empty.style.color = 'rgba(255,255,255,0.4)';
+        empty.textContent = '(还没有录制视频)';
+        recList.appendChild(empty);
+        return;
+      }
+      items.forEach((it) => {
+        const row = document.createElement('div');
+        row.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.06);gap:8px;';
+        const info = document.createElement('div');
+        info.style.cssText = 'flex:1;min-width:0;';
+        const name = document.createElement('div');
+        name.style.color = '#F8FAFC';
+        name.textContent = it.name;
+        const meta = document.createElement('div');
+        meta.style.cssText = 'font-size:10px;color:rgba(255,255,255,0.4);';
+        meta.textContent = (it.size / 1024 / 1024).toFixed(1) + ' MB · ' + new Date(it.mtime).toLocaleTimeString();
+        info.appendChild(name);
+        info.appendChild(meta);
+        const shareBtn = document.createElement('button');
+        shareBtn.textContent = '分享微信';
+        shareBtn.style.cssText = 'flex-shrink:0;width:auto;padding:6px 12px;font-size:11px;background:linear-gradient(135deg,#06B6D4,#0891B2);box-shadow:0 4px 12px rgba(6,182,212,0.25);margin-top:0;';
+        shareBtn.addEventListener('click', () => {
+          window.RoamBridge.shareVideoToWeChat(it.path);
+        });
+        row.appendChild(info);
+        row.appendChild(shareBtn);
+        recList.appendChild(row);
+      });
+    }
+
+    // 启动时刷一次列表
+    if (hasBridge) refreshRecList();
 
     // 启动:先收集环境
     gatherEnv();

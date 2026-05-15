@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- internal storage 的录制目录,FileProvider 暴露给系统分享面板 -->
+    <files-path name="recordings" path="recordings/" />
+    <!-- 后续如果存 .spz 在 cache,也能分享(可选) -->
+    <cache-path name="cache" path="." />
+</paths>

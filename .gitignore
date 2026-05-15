@@ -37,6 +37,23 @@ lerna-debug.log*
 .dev.vars.*
 wrangler.toml.bak
 
+# ===== Android Studio / Gradle =====
+.gradle/
+**/build/
+local.properties
+captures/
+*.apk
+*.aab
+*.ap_
+*.dex
+.cxx/
+# Android Studio 项目文件中除了少量 share 的,其余都忽略(.idea/ 全忽略已上面规则覆盖)
+# 例外:Android 模块下保留 release keystore 占位但不入实际 keystore
+*.keystore
+*.jks
+# SPZ / SOG 测试素材如果放在 android/app/src/main/assets/ 也算大文件,默认忽略
+android/app/src/main/assets/test-*.spz
+
 # ===== 环境变量 / 密钥 =====
 .env
 .env.*

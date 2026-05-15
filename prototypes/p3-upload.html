@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Roam · 上传场景</title>
+  <title>Roam · 导入场景</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <style>
@@ -47,28 +47,28 @@
   <!-- Modal overlay -->
   <div class="fixed inset-0 flex items-start justify-center pt-12 pb-10 px-4 z-50 overflow-auto" style="background: rgba(244,240,255,0.50); backdrop-filter: blur(4px);">
     <div class="w-full max-w-5xl">
-      <div class="text-xs text-[#71717A] mb-3 text-center font-medium">▼ 展示上传弹窗的 3 个状态 · 实际只会出现一个</div>
+      <div class="text-xs text-[#71717A] mb-3 text-center font-medium">▼ 展示导入弹窗的 3 个状态 · 实际只会出现一个</div>
 
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
 
         <!-- State 1: Idle / Dropzone -->
         <div class="glass-modal rounded-3xl p-6">
           <div class="flex items-center justify-between mb-5">
-            <h2 class="text-base font-semibold">上传新场景</h2>
+            <h2 class="text-base font-semibold">导入新场景</h2>
             <button class="text-[#A1A1AA] hover:text-[#1A1A2E] text-2xl leading-none w-8 h-8 rounded-lg hover:bg-black/5">×</button>
           </div>
           <div class="dropzone rounded-2xl p-8 text-center mb-5">
             <div class="w-12 h-12 mx-auto mb-3 rounded-2xl flex items-center justify-center text-2xl" style="background: linear-gradient(135deg, rgba(139,92,246,0.15), rgba(59,130,246,0.15));">⬆</div>
-            <div class="text-sm font-semibold mb-1">拖拽 .sog / .compressed.ply</div>
+            <div class="text-sm font-semibold mb-1">拖拽 .spz</div>
             <div class="text-xs text-[#71717A] mb-4">或</div>
             <button class="bg-white text-sm font-medium px-4 py-2 rounded-xl border border-black/10 hover:border-[#8B5CF6]/40 hover:bg-[#8B5CF6]/5 transition">点击选择文件</button>
-            <div class="text-xs text-[#A1A1AA] mt-4">单文件 ≤ 30 MB · 不接受原始 .ply</div>
+            <div class="text-xs text-[#A1A1AA] mt-4">单文件 ≤ 30 MB · Scaniverse 直接导出</div>
           </div>
           <label class="block text-sm text-[#52525B] mb-2 font-medium">场景名称</label>
           <input type="text" placeholder="默认用文件名" class="w-full bg-white border border-black/10 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[#8B5CF6] focus:ring-2 focus:ring-[#8B5CF6]/15" />
           <div class="flex items-center justify-end gap-2 mt-6">
             <button class="text-sm text-[#52525B] hover:text-[#1A1A2E] px-4 py-2 font-medium">取消</button>
-            <button class="btn-primary text-sm font-medium px-4 py-2 rounded-xl" disabled>开始上传</button>
+            <button class="btn-primary text-sm font-medium px-4 py-2 rounded-xl" disabled>开始导入</button>
           </div>
           <div class="mt-4 text-[10px] text-[#A1A1AA] text-center">状态 1 · 初始(等待文件)</div>
         </div>
@@ -76,10 +76,10 @@
         <!-- State 2: Uploading -->
         <div class="glass-modal rounded-3xl p-6">
           <div class="flex items-center justify-between mb-5">
-            <h2 class="text-base font-semibold">正在上传:卧室</h2>
+            <h2 class="text-base font-semibold">正在导入:卧室</h2>
             <button class="text-[#A1A1AA] hover:text-[#1A1A2E] text-2xl leading-none w-8 h-8 rounded-lg hover:bg-black/5">×</button>
           </div>
-          <div class="canvas-ph rounded-2xl aspect-video mb-5 flex items-center justify-center text-[#8B5CF6]/40 text-xs font-medium">封面预览生成中…</div>
+          <div class="canvas-ph rounded-2xl aspect-video mb-5 flex items-center justify-center text-[#8B5CF6]/40 text-xs font-medium">导入到本地存储中…</div>
           <div class="mb-2 flex items-center justify-between text-sm">
             <span class="font-semibold text-[#1A1A2E]">62%</span>
             <span class="text-[#71717A] text-xs">7.4 MB / 12 MB</span>
@@ -89,15 +89,15 @@
           </div>
           <div class="text-xs text-[#71717A] mt-3">大约还需 8 秒…</div>
           <div class="flex items-center justify-end gap-2 mt-6">
-            <button class="bg-white text-sm font-medium px-4 py-2 rounded-xl border border-black/10 hover:bg-black/5 transition">取消上传</button>
+            <button class="bg-white text-sm font-medium px-4 py-2 rounded-xl border border-black/10 hover:bg-black/5 transition">取消导入</button>
           </div>
-          <div class="mt-4 text-[10px] text-[#A1A1AA] text-center">状态 2 · 上传中(关弹窗 = 取消)</div>
+          <div class="mt-4 text-[10px] text-[#A1A1AA] text-center">状态 2 · 导入中(关弹窗 = 取消)</div>
         </div>
 
         <!-- State 3: Error -->
         <div class="glass-modal rounded-3xl p-6">
           <div class="flex items-center justify-between mb-5">
-            <h2 class="text-base font-semibold">上传失败</h2>
+            <h2 class="text-base font-semibold">导入失败</h2>
             <button class="text-[#A1A1AA] hover:text-[#1A1A2E] text-2xl leading-none w-8 h-8 rounded-lg hover:bg-black/5">×</button>
           </div>
           <div class="dropzone-error rounded-2xl p-5 mb-5">
@@ -105,7 +105,7 @@
               <div class="text-[#EF4444] text-xl shrink-0">⚠</div>
               <div>
                 <div class="text-sm font-semibold text-[#DC2626] mb-1">文件超过 30 MB</div>
-                <div class="text-xs text-[#52525B] leading-relaxed">你选择的 <code class="bg-white px-1.5 py-0.5 rounded text-[#1A1A2E] border border-black/5">my_room.ply</code>(48 MB)超出上限。请先用 SplatTransform 压缩为 .sog 格式。</div>
+                <div class="text-xs text-[#52525B] leading-relaxed">你选择的 <code class="bg-white px-1.5 py-0.5 rounded text-[#1A1A2E] border border-black/5">my_room.ply</code>(48 MB)超出上限。请用 Scaniverse 重新导出 SPZ 格式。</div>
                 <a href="p6-help.html" class="text-xs text-[#8B5CF6] hover:text-[#7C3AED] mt-2 inline-block font-medium">如何压缩 →</a>
               </div>
             </div>

@@ -25,9 +25,9 @@
     <header class="mb-12">
       <div class="flex items-center gap-3 mb-4">
         <div class="w-10 h-10 rounded-xl glass flex items-center justify-center text-xl">🚶</div>
-        <h1 class="text-2xl font-semibold tracking-tight">Roam · 产品原型 v0.2</h1>
+        <h1 class="text-2xl font-semibold tracking-tight">Roam · 产品原型 v0.3</h1>
       </div>
-      <p class="text-[#52525B] max-w-2xl leading-relaxed">3DGS 场景漫游分享平台的 MVP 主流程线框。Linear / Apple Vision Pro 浅色风,玻璃态 + 紫蓝青点缀。P5 公开浏览页保留深色沉浸感,其余全部浅色。3D 画布部分用占位框,M0 跑通 PlayCanvas demo 后再细化。</p>
+      <p class="text-[#52525B] max-w-2xl leading-relaxed">3DGS 场景本地漫游 + 微信视频分享的 MVP 主流程线框。Linear / Apple Vision Pro 浅色风,玻璃态 + 紫蓝青点缀。P5 公开浏览页保留深色沉浸感,其余全部浅色。3D 画布部分用占位框,M0 已通过,M1 接入 PlayCanvas + @spz-loader。</p>
       <div class="mt-5 flex items-center gap-3 text-sm">
         <a href="index.html" class="px-3 py-1.5 rounded-lg bg-[#1A1A2E] text-white font-medium">桌面版</a>
         <a href="mobile.html" class="px-3 py-1.5 rounded-lg text-[#52525B] hover:text-[#1A1A2E] hover:bg-white/60 font-medium">移动版 →</a>
@@ -40,37 +40,37 @@
       <a href="p1-landing.html" class="glass rounded-2xl p-6 cursor-pointer block">
         <div class="text-[#8B5CF6] text-sm font-semibold mb-1">P1</div>
         <div class="text-lg font-medium mb-1">落地页</div>
-        <div class="text-sm text-[#71717A]">未登录默认页;hero + 官方示例场景 + GitHub 登录入口</div>
+        <div class="text-sm text-[#71717A]">介绍 Roam · 扫一个空间 → 漫游 → 录视频微信发(本地版)</div>
       </a>
 
       <a href="p2-dashboard.html" class="glass rounded-2xl p-6 cursor-pointer block">
         <div class="text-[#8B5CF6] text-sm font-semibold mb-1">P2</div>
         <div class="text-lg font-medium mb-1">我的场景</div>
-        <div class="text-sm text-[#71717A]">登录后默认页;卡片网格 + 上传按钮 + 空状态</div>
+        <div class="text-sm text-[#71717A]">本地场景库;卡片网格 + 导入 + 空状态</div>
       </a>
 
       <a href="p3-upload.html" class="glass rounded-2xl p-6 cursor-pointer block">
         <div class="text-[#8B5CF6] text-sm font-semibold mb-1">P3</div>
-        <div class="text-lg font-medium mb-1">上传场景(弹窗)</div>
-        <div class="text-sm text-[#71717A]">叠加在 P2 上;拖拽 / 选择文件 / 命名 / 进度</div>
+        <div class="text-lg font-medium mb-1">导入场景(弹窗)</div>
+        <div class="text-sm text-[#71717A]">本地导入弹窗;选 .spz 文件 / 命名 / 复制到本地存储</div>
       </a>
 
       <a href="p4-scene-detail.html" class="glass rounded-2xl p-6 cursor-pointer block">
         <div class="text-[#8B5CF6] text-sm font-semibold mb-1">P4</div>
-        <div class="text-lg font-medium mb-1">场景详情(仅本人)</div>
-        <div class="text-sm text-[#71717A]">3D 预览 + 改名 / 复制公开链接 / 删除</div>
+        <div class="text-lg font-medium mb-1">场景详情 + 视频列表 + 分享</div>
+        <div class="text-sm text-[#71717A]">3D 预览 + 录视频 + 分享微信 + 改名 / 删除</div>
       </a>
 
       <a href="p5-public-view.html" class="glass rounded-2xl p-6 cursor-pointer block relative">
         <div class="text-[#8B5CF6] text-sm font-semibold mb-1">P5 <span class="ml-1 text-[10px] bg-[#1A1A2E] text-white px-1.5 py-0.5 rounded">深色沉浸</span></div>
-        <div class="text-lg font-medium mb-1">公开浏览(响应式)</div>
-        <div class="text-sm text-[#71717A]">核心体验;桌面 WASD + 移动虚拟摇杆站位</div>
+        <div class="text-lg font-medium mb-1">本地漫游(深色沉浸)</div>
+        <div class="text-sm text-[#71717A]">核心体验;深色沉浸 + 录制按钮 + 分享</div>
       </a>
 
       <a href="p6-help.html" class="glass rounded-2xl p-6 cursor-pointer block">
         <div class="text-[#8B5CF6] text-sm font-semibold mb-1">P6</div>
         <div class="text-lg font-medium mb-1">帮助文档</div>
-        <div class="text-sm text-[#71717A]">扫描指南 + SplatTransform 教程</div>
+        <div class="text-sm text-[#71717A]">扫描指南 + SPZ 导入指南</div>
       </a>
     </div>
 

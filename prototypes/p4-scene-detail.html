@@ -56,7 +56,7 @@
           <span class="text-[#D4D4D8]">·</span>
           <span>12 MB</span>
           <span class="text-[#D4D4D8]">·</span>
-          <code class="bg-white/80 border border-black/5 px-1.5 py-0.5 rounded text-xs text-[#52525B]">.sog</code>
+          <code class="bg-white/80 border border-black/5 px-1.5 py-0.5 rounded text-xs text-[#52525B]">.spz</code>
         </div>
       </div>
     </div>
@@ -64,36 +64,64 @@
     <!-- 3D preview -->
     <div class="canvas-ph rounded-3xl aspect-video mb-6 flex items-center justify-center relative">
       <div class="text-center">
-        <div class="text-[#8B5CF6]/60 text-sm font-medium mb-2">3D 漫游画布 · 站位</div>
-        <div class="text-[#A1A1AA] text-xs">M0 之后接入 PlayCanvas Engine</div>
+        <div class="text-[#8B5CF6]/60 text-sm font-medium mb-2">本地漫游画布 · 站位</div>
+        <div class="text-[#A1A1AA] text-xs">M1 之后接入 PlayCanvas + @spz-loader</div>
       </div>
       <div class="absolute bottom-4 left-4 right-4 flex items-center justify-between text-xs">
-        <div class="bg-white/80 backdrop-blur-md border border-black/5 px-3 py-1.5 rounded-full text-[#52525B] font-medium">WASD 移动 · 鼠标拖拽视角</div>
-        <button class="bg-white/80 backdrop-blur-md border border-black/5 px-3 py-1.5 rounded-full hover:bg-white text-[#1A1A2E] font-medium">全屏 ⛶</button>
+        <div class="bg-white/80 backdrop-blur-md border border-black/5 px-3 py-1.5 rounded-full text-[#52525B] font-medium">虚拟摇杆移动 · 拖拽视角(MVP 无碰撞)</div>
+        <a href="p5-public-view.html" class="btn-cyan px-3 py-1.5 rounded-full text-xs font-medium">进入漫游 →</a>
       </div>
     </div>
 
-    <!-- Public link -->
+    <!-- Record + Share -->
     <div class="glass rounded-3xl p-5 mb-6">
-      <div class="text-xs uppercase tracking-widest text-[#8B5CF6] mb-3 font-semibold">公开链接</div>
-      <div class="flex flex-col sm:flex-row sm:items-center gap-2">
-        <code class="flex-1 min-w-0 bg-white/90 border border-black/8 px-3 py-2.5 rounded-xl text-sm text-[#1A1A2E] font-mono truncate">https://roam.app/s/aB3xY9</code>
-        <button class="bg-white border border-black/10 px-3 py-2.5 rounded-xl text-sm font-medium hover:border-[#8B5CF6]/30 hover:bg-[#8B5CF6]/5 transition flex items-center justify-center gap-2">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-          复制
-        </button>
-        <a href="p5-public-view.html" target="_blank" class="btn-cyan px-3 py-2.5 rounded-xl text-sm font-medium flex items-center justify-center gap-2">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-          在新标签打开
+      <div class="text-xs uppercase tracking-widest text-[#8B5CF6] mb-3 font-semibold">录视频 + 分享</div>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+        <a href="p5-public-view.html?record=1" class="bg-[#EF4444] text-white px-4 py-3 rounded-xl text-sm font-medium flex items-center justify-center gap-2 hover:bg-[#DC2626] transition">
+          <span class="w-2.5 h-2.5 rounded-full bg-white animate-pulse"></span>
+          录制漫游视频(60s)
         </a>
+        <button class="btn-cyan px-4 py-3 rounded-xl text-sm font-medium flex items-center justify-center gap-2">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+          分享最近一个视频
+        </button>
       </div>
-      <div class="text-xs text-[#71717A] mt-3">所有场景默认公开,MVP 不支持设为私有</div>
+
+      <!-- Saved videos list -->
+      <div class="text-xs text-[#71717A] mb-2 font-medium">已录制视频(本地)</div>
+      <div class="space-y-2">
+        <div class="bg-white/70 border border-black/5 rounded-xl px-3 py-2.5 flex items-center justify-between">
+          <div class="flex items-center gap-3 min-w-0">
+            <div class="w-10 h-10 bg-gradient-to-br from-[#8B5CF6] to-[#3B82F6] rounded-lg flex items-center justify-center text-white">▶</div>
+            <div class="min-w-0">
+              <div class="text-sm font-medium truncate">卧室漫游_001.mp4</div>
+              <div class="text-[10px] text-[#71717A]">2026-05-15 · 60s · 18 MB</div>
+            </div>
+          </div>
+          <button class="bg-[#06B6D4]/10 text-[#0891B2] border border-[#06B6D4]/20 px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-[#06B6D4]/15">
+            分享到微信 →
+          </button>
+        </div>
+        <div class="bg-white/70 border border-black/5 rounded-xl px-3 py-2.5 flex items-center justify-between">
+          <div class="flex items-center gap-3 min-w-0">
+            <div class="w-10 h-10 bg-gradient-to-br from-[#06B6D4] to-[#3B82F6] rounded-lg flex items-center justify-center text-white">▶</div>
+            <div class="min-w-0">
+              <div class="text-sm font-medium truncate">卧室漫游_002.mp4</div>
+              <div class="text-[10px] text-[#71717A]">2026-05-15 · 45s · 14 MB</div>
+            </div>
+          </div>
+          <button class="bg-[#06B6D4]/10 text-[#0891B2] border border-[#06B6D4]/20 px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-[#06B6D4]/15">
+            分享到微信 →
+          </button>
+        </div>
+      </div>
+      <div class="text-xs text-[#71717A] mt-3">点「分享到微信」 → 系统分享面板 → 选微信 → 发给朋友 / 朋友圈</div>
     </div>
 
     <!-- Toast example -->
-    <div class="text-xs text-[#A1A1AA] mb-2">↓ 复制成功后的 Toast</div>
+    <div class="text-xs text-[#A1A1AA] mb-2">↓ 分享 / 录制完成后的 Toast</div>
     <div class="inline-flex items-center gap-2 bg-[#1A1A2E] text-white rounded-xl px-3 py-2 text-sm mb-10 shadow-lg">
-      <span class="text-[#06B6D4]">✓</span> 已复制到剪贴板
+      <span class="text-[#06B6D4]">✓</span> 视频已保存到本地
     </div>
 
     <!-- Danger zone -->
@@ -102,7 +130,7 @@
       <div class="bg-white/65 backdrop-blur-md border border-[#EF4444]/15 rounded-3xl p-5 flex items-center justify-between gap-4 flex-wrap shadow-sm">
         <div>
           <div class="text-base font-semibold mb-1">删除场景</div>
-          <div class="text-sm text-[#71717A]">删除后无法恢复,公开链接也会立即失效</div>
+          <div class="text-sm text-[#71717A]">删除后无法恢复,本地存储中的 .spz 文件也会被清除</div>
         </div>
         <button onclick="document.getElementById('delModal').classList.remove('hidden')" class="bg-[#EF4444]/8 text-[#DC2626] border border-[#EF4444]/20 px-4 py-2.5 rounded-xl text-sm font-medium hover:bg-[#EF4444]/12 transition">
           🗑 删除场景

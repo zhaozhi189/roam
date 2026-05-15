@@ -1,7 +1,9 @@
 package com.roam.app
 
 import android.annotation.SuppressLint
+import android.net.Uri
 import android.os.Bundle
+import android.util.Log
 import android.view.ViewGroup
 import android.webkit.WebChromeClient
 import android.webkit.WebView
@@ -9,32 +11,83 @@ import android.webkit.WebViewClient
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
 import com.roam.app.ui.theme.RoamTheme
+import org.json.JSONObject
 
 /**
- * MVP 第 0 周入口:WebView 加载 assets/index.html
- * 验证 WebView 在 Compose 里能跑 + JS 启用 + 硬件加速
- * 后续 H9 加 PlayCanvas + @spz-loader/playcanvas
+ * MVP 入口:WebView 加载 assets/index.html
+ *
+ * 架构:
+ *   MainActivity
+ *     ├ webView(私有引用,供 ActivityResult callback 用)
+ *     ├ spzPickerLauncher(SAF 文件选择,回调时把 URI 通过 evaluateJavascript 传回 JS)
+ *     └ RoamWebView (Composable) → AndroidView → WebView
+ *           └ addJavascriptInterface(RoamBridge, "RoamBridge")
+ *
+ * JS 调用流程:
+ *   1. JS:  window.RoamBridge.pickSpzFile()
+ *   2. Kotlin RoamBridge.pickSpzFile() 在 UI 线程启动 SAF launcher
+ *   3. 系统 SAF 弹出,用户选文件
+ *   4. MainActivity.spzPickerLauncher callback 拿到 Uri
+ *   5. webView.evaluateJavascript 调 window.onSpzPicked(uri) 把 URI 传回 JS
  */
 class MainActivity : ComponentActivity() {
+
+    private var webView: WebView? = null
+
+    /**
+     * SAF Open Document launcher。结果通过 evaluateJavascript 异步传回 JS。
+     * 注册必须在 onCreate 里、setContent 之前(activity registry 要求)。
+     */
+    private val spzPickerLauncher = registerForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri: Uri? ->
+        val js = if (uri != null) {
+            // JSONObject.quote 自动加引号 + 转义,防止 URI 里特殊字符破坏 JS 语法
+            "window.onSpzPicked && window.onSpzPicked(${JSONObject.quote(uri.toString())})"
+        } else {
+            "window.onSpzPicked && window.onSpzPicked(null)"
+        }
+        Log.d(TAG, "SAF returned uri=$uri,calling JS: $js")
+        webView?.post { webView?.evaluateJavascript(js, null) }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
             RoamTheme {
-                RoamWebView(modifier = Modifier.fillMaxSize())
+                RoamWebView(
+                    modifier = Modifier.fillMaxSize(),
+                    onWebViewCreated = { wv ->
+                        webView = wv
+                        wv.addJavascriptInterface(
+                            RoamBridge(this@MainActivity, spzPickerLauncher),
+                            RoamBridge.JS_INTERFACE_NAME
+                        )
+                        Log.d(TAG, "WebView created and RoamBridge injected")
+                    }
+                )
             }
         }
+    }
+
+    companion object {
+        private const val TAG = "MainActivity"
     }
 }
 
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
-fun RoamWebView(modifier: Modifier = Modifier) {
+fun RoamWebView(
+    modifier: Modifier = Modifier,
+    onWebViewCreated: (WebView) -> Unit = {}
+) {
     AndroidView(
         modifier = modifier,
         factory = { context ->
@@ -43,20 +96,19 @@ fun RoamWebView(modifier: Modifier = Modifier) {
                     ViewGroup.LayoutParams.MATCH_PARENT,
                     ViewGroup.LayoutParams.MATCH_PARENT
                 )
-                // WebView 基础配置
                 settings.apply {
                     javaScriptEnabled = true               // PlayCanvas 需要
                     domStorageEnabled = true               // localStorage / IndexedDB
                     allowFileAccess = true                 // 读 internal storage 的 .spz
-                    allowContentAccess = true              // 读 content:// URI(SAF)
+                    allowContentAccess = true              // 读 content:// URI(SAF 返回的)
                     mediaPlaybackRequiresUserGesture = false
                     setSupportZoom(false)                  // 3D 漫游不需要双指缩放
                     builtInZoomControls = false
                     displayZoomControls = false
                 }
-                webViewClient = WebViewClient()             // 默认拦截外部跳转
-                webChromeClient = WebChromeClient()         // console.log 透传 / 全屏支持
-                // 加载 assets 内的本地 HTML
+                webViewClient = WebViewClient()
+                webChromeClient = WebChromeClient()
+                onWebViewCreated(this)
                 loadUrl("file:///android_asset/index.html")
             }
         }

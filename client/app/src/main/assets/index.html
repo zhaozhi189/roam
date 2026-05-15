@@ -128,11 +128,12 @@
       </div>
     </div>
 
-    <!-- Test 3: H9b SPZ 加载 -->
+    <!-- Test 3: H9b SPZ 加载(JS Bridge 接入 SAF) -->
     <div class="card">
-      <h2>③ H9b · @spz-loader 加载 SPZ <span class="status status-blocked">待 SPZ 文件</span></h2>
-      <div class="meta">需要先有一个 .spz 文件(用 Scaniverse 扫一个,或公开示例)。M1 后续接 SAF 选文件</div>
-      <a href="#" class="btn btn-secondary" id="spz-info-btn">查看接入说明</a>
+      <h2>③ H9b · @spz-loader 加载 SPZ <span class="status status-pending" id="spz-badge">JS Bridge 就绪</span></h2>
+      <div class="meta">点按钮唤起系统文件选择器(SAF),选个 .spz 文件 → URI 通过 JS Bridge 回传。@spz-loader 集成 M1 后段接</div>
+      <button id="spz-pick-btn">选 SPZ 文件(调系统 SAF)</button>
+      <div id="spz-result" style="display:none; margin-top:12px; font-family:ui-monospace,monospace; font-size:11px; color:rgba(255,255,255,0.7); word-break:break-all; padding:10px 12px; background:rgba(6,182,212,0.08); border:1px solid rgba(6,182,212,0.20); border-radius:8px;"></div>
     </div>
 
     <!-- WebView 环境信息 -->
@@ -261,17 +262,54 @@
       console.log('[Roam] PlayCanvas scene started');
     }
 
-    // ====== H9b SPZ 接入说明 ======
-    document.getElementById('spz-info-btn').addEventListener('click', (e) => {
-      e.preventDefault();
-      alert('未来步骤(M1 第 0 周后段):\n\n' +
-            '1. Kotlin 端用 Storage Access Framework 让用户选 .spz\n' +
-            '2. JS Bridge 把 file:// URI 传给前端\n' +
-            '3. import { createGSplatEntityFromSpzUrlAsync } from "@spz-loader/playcanvas"\n' +
-            '4. const entity = await createGSplatEntityFromSpzUrlAsync(app, url)\n' +
-            '5. app.root.addChild(entity)\n\n' +
-            '现在 SPZ 文件还没有,等 Scaniverse 扫一个再做这一步');
+    // ====== H9b SPZ 选文件(JS Bridge → Kotlin SAF)======
+    const spzBadge = document.getElementById('spz-badge');
+    const spzResult = document.getElementById('spz-result');
+    const spzPickBtn = document.getElementById('spz-pick-btn');
+
+    // 检测 RoamBridge 是否注入(只有装在 Android App 里才有,浏览器调试时为 undefined)
+    const hasBridge = typeof window.RoamBridge !== 'undefined';
+    if (!hasBridge) {
+      spzBadge.textContent = '✗ Bridge 未注入(浏览器调试中)';
+      spzBadge.className = 'status status-error';
+      spzPickBtn.disabled = true;
+      spzPickBtn.textContent = '需要在 Android App 里运行';
+    }
+
+    spzPickBtn.addEventListener('click', () => {
+      if (!hasBridge) return;
+      console.log('[Roam] 调 RoamBridge.pickSpzFile()');
+      window.RoamBridge.pickSpzFile();
     });
+
+    // Kotlin SAF 回调进来的入口(MainActivity.spzPickerLauncher → evaluateJavascript)
+    window.onSpzPicked = function (uri) {
+      console.log('[Roam] onSpzPicked uri=', uri);
+      spzResult.style.display = 'block';
+      if (uri == null) {
+        spzResult.textContent = '⚠️ 用户取消选择';
+        spzResult.style.background = 'rgba(245,158,11,0.08)';
+        spzResult.style.borderColor = 'rgba(245,158,11,0.20)';
+      } else {
+        // 用 textContent 防 XSS
+        spzResult.textContent = '✓ 选中: ' + uri + '\n下一步:fetch(uri).then(arrayBuffer → @spz-loader 加载到 PlayCanvas)';
+        spzResult.style.background = 'rgba(6,182,212,0.08)';
+        spzResult.style.borderColor = 'rgba(6,182,212,0.20)';
+        if (window.RoamBridge && window.RoamBridge.toast) {
+          window.RoamBridge.toast('已收到 SPZ URI');
+        }
+      }
+    };
+
+    // 启动时如果 Bridge 已注入,问 native 探针
+    if (hasBridge && window.RoamBridge.nativeInfo) {
+      try {
+        const info = JSON.parse(window.RoamBridge.nativeInfo());
+        console.log('[Roam] nativeInfo:', info);
+      } catch (e) {
+        console.warn('[Roam] nativeInfo parse failed:', e);
+      }
+    }
 
     // 启动:先收集环境
     gatherEnv();

@@ -7,6 +7,7 @@ import android.net.Uri
 import android.os.Bundle
 import android.util.Log
 import android.view.ViewGroup
+import android.webkit.ConsoleMessage
 import android.webkit.WebChromeClient
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -85,6 +86,9 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // 开 WebView 远程 DevTools 调试,Mac Chrome 输入 chrome://inspect/#devices 即可看到
+        // (debug build 才开;release 默认关闭防泄露)
+        WebView.setWebContentsDebuggingEnabled(true)
         enableEdgeToEdge()
         setContent {
             RoamTheme {
@@ -133,7 +137,20 @@ fun RoamWebView(
                     displayZoomControls = false
                 }
                 webViewClient = WebViewClient()
-                webChromeClient = WebChromeClient()
+                webChromeClient = object : WebChromeClient() {
+                    // 把 JS console.log/warn/error 桥到 Android logcat,tag = Roam/WebView
+                    override fun onConsoleMessage(msg: ConsoleMessage): Boolean {
+                        val level = when (msg.messageLevel()) {
+                            ConsoleMessage.MessageLevel.ERROR -> "E"
+                            ConsoleMessage.MessageLevel.WARNING -> "W"
+                            ConsoleMessage.MessageLevel.LOG -> "I"
+                            ConsoleMessage.MessageLevel.DEBUG -> "D"
+                            else -> "V"
+                        }
+                        Log.i("Roam/WebView", "[$level ${msg.lineNumber()}] ${msg.message()}")
+                        return true
+                    }
+                }
                 onWebViewCreated(this)
                 loadUrl("file:///android_asset/index.html")
             }

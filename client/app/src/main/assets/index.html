@@ -118,8 +118,8 @@
 
     <!-- Test 2: H9a 本地 PlayCanvas 立方体 -->
     <div class="card">
-      <h2>② H9a · 本地 PlayCanvas 立方体 <span class="status status-pending" id="pc-badge">CDN 加载中…</span></h2>
-      <div class="meta">CDN 加载 playcanvas@latest,创建简单 3D 场景验证 WebGL + 引擎可用</div>
+      <h2>② H9a · 本地 PlayCanvas 立方体 <span class="status status-pending" id="pc-badge">vendor 加载中…</span></h2>
+      <div class="meta">本地 vendor/playcanvas.min.js(2.2MB,完全离线),创建简单 3D 场景验证 WebGL + 引擎可用</div>
       <button id="pc-start" disabled>启动 PlayCanvas 场景</button>
       <div id="pc-canvas-wrap">
         <canvas id="pc-canvas"></canvas>
@@ -136,14 +136,15 @@
       <div id="spz-result" style="display:none; margin-top:12px; font-family:ui-monospace,monospace; font-size:11px; color:rgba(255,255,255,0.7); word-break:break-all; padding:10px 12px; background:rgba(6,182,212,0.08); border:1px solid rgba(6,182,212,0.20); border-radius:8px;"></div>
     </div>
 
-    <!-- Test 4: H7 + H8 录屏 + 微信分享 -->
+    <!-- Test 4: H7 + H8 录屏 + 微信分享(Z 路径:WebCodecs + mp4-muxer 直出 H.264 MP4)-->
     <div class="card">
-      <h2>④ H7+H8 · 录屏 + Share Intent <span class="status status-pending" id="rec-badge">待真机授权</span></h2>
-      <div class="meta">点「开始录屏」弹 MediaProjection 系统权限 → 允许后录全屏 → 停止 → 视频列表点「分享微信」调系统面板</div>
+      <h2>④ H7+H8 · 录 PlayCanvas 画面(MP4) + 微信分享 <span class="status status-pending" id="rec-badge">待启动 PlayCanvas</span></h2>
+      <div class="meta">必须先点 ② 启动 PlayCanvas。WebCodecs(系统硬件 H.264 编码器)+ mp4-muxer 直出标准 MP4 → 微信原生兼容。**0 系统授权 / 0 切走 App / 完全 JS 内闭环**</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;">
-        <button id="rec-start-btn">🔴 开始录屏</button>
-        <button id="rec-stop-btn" disabled style="background:rgba(255,255,255,0.08);box-shadow:none;border:1px solid rgba(255,255,255,0.12);">⏹ 停止录屏</button>
+        <button id="rec-start-btn" disabled>🔴 开始录(MP4)</button>
+        <button id="rec-stop-btn" disabled style="background:linear-gradient(135deg,#EF4444,#DC2626);box-shadow:0 6px 16px rgba(239,68,68,0.25);">⏹ 停止</button>
       </div>
+      <div id="rec-timer" style="display:none;text-align:center;margin-top:8px;font-family:ui-monospace,monospace;color:#EF4444;font-size:13px;">00:00 / 01:00</div>
       <button id="rec-list-btn" style="margin-top:8px;background:rgba(255,255,255,0.08);box-shadow:none;border:1px solid rgba(255,255,255,0.12);">刷新本地视频列表</button>
       <div id="rec-list" style="margin-top:10px;font-size:11px;font-family:ui-monospace,monospace;color:rgba(255,255,255,0.7);"></div>
     </div>
@@ -155,11 +156,17 @@
     </div>
   </div>
 
-  <!-- PlayCanvas Engine from CDN -->
-  <script src="https://cdn.jsdelivr.net/npm/playcanvas@2/build/playcanvas.min.js"
-          onload="onPcLoaded()" onerror="onPcError()"></script>
+  <!-- PlayCanvas Engine vendor 进 assets/(M0 阶段曾用 jsdelivr CDN,国内不稳改本地)-->
+  <!-- 注意:同步 script 加载,加载完立即同步检查 pc 全局,不用 onload 属性(避免函数定义时序问题)-->
+  <script src="vendor/playcanvas.min.js"></script>
+  <!-- mp4-muxer 5.2.2(31KB IIFE,挂 window.Mp4Muxer)— H7 用 WebCodecs+mp4-muxer 录 H.264 MP4 -->
+  <script src="vendor/mp4-muxer.min.js"></script>
 
   <script>
+    // 同步检查 PlayCanvas 是否成功暴露 pc 全局(UMD 包装会挂到 window.pc)
+    var __PC_LOADED__ = (typeof pc !== 'undefined' && pc.version);
+    console.log('[Roam] PlayCanvas inline check, pc=', typeof pc, ' version=', __PC_LOADED__ || '(not loaded)');
+
     // ====== 环境信息收集(用 DOM API,避免 innerHTML XSS 风险)======
     function gatherEnv() {
       const info = [];
@@ -206,7 +213,7 @@
       console.log('[Roam] Env collected,', info.length, 'rows');
     }
 
-    // ====== PlayCanvas CDN 加载完毕回调 ======
+    // ====== PlayCanvas 加载状态处理(同步检查,不用 onload)======
     function onPcLoaded() {
       const status = document.getElementById('pc-status');
       status.textContent = 'PlayCanvas ' + pc.version + ' 已就绪,点上方按钮启动';
@@ -220,11 +227,17 @@
     }
     function onPcError() {
       const status = document.getElementById('pc-status');
-      status.textContent = '❌ PlayCanvas CDN 加载失败(检查网络)';
+      status.textContent = '❌ PlayCanvas vendor 加载失败';
       const badge = document.getElementById('pc-badge');
-      badge.textContent = '✗ CDN 失败';
+      badge.textContent = '✗ vendor 失败';
       badge.className = 'status status-error';
-      console.error('[Roam] PlayCanvas CDN load failed');
+      console.error('[Roam] PlayCanvas vendor load failed');
+    }
+    // 入口:用前面 inline 检查的 __PC_LOADED__ 决定走 loaded 还是 error
+    if (typeof __PC_LOADED__ !== 'undefined' && __PC_LOADED__) {
+      onPcLoaded();
+    } else {
+      onPcError();
     }
 
     // ====== 启动 PlayCanvas 立方体场景 ======
@@ -272,6 +285,10 @@
 
       pcApp.start();
       console.log('[Roam] PlayCanvas scene started');
+      // 通知 ④ 录屏卡片:canvas 已可录
+      if (typeof window.onPlayCanvasReady === 'function') {
+        window.onPlayCanvasReady();
+      }
     }
 
     // ====== H9b SPZ 选文件(JS Bridge → Kotlin SAF)======
@@ -323,53 +340,208 @@
       }
     }
 
-    // ====== H7 + H8 录屏 + 分享 ======
+    // ====== H7 + H8 录屏 + 分享(Z 路径:WebCodecs + mp4-muxer 直出 H.264 MP4)======
     const recStartBtn = document.getElementById('rec-start-btn');
     const recStopBtn = document.getElementById('rec-stop-btn');
     const recListBtn = document.getElementById('rec-list-btn');
     const recList = document.getElementById('rec-list');
     const recBadge = document.getElementById('rec-badge');
+    const recTimer = document.getElementById('rec-timer');
 
+    let videoEncoder = null;
+    let mp4Muxer = null;
+    let recStartTime = 0;
+    let recFrameCount = 0;
+    let recTimerInterval = null;
+    let recRecording = false;
+    let recFrameReader = null;
+    let recStream = null;
+    const REC_MAX_SECONDS = 60;
+    const REC_FPS = 30;
+    const REC_BITRATE = 3_000_000; // 3 Mbps,~22.5MB/min,微信 25MB 限制内
+
+    // 检测 WebCodecs + mp4-muxer 支持(MediaStreamTrackProcessor 是关键,Chrome 94+)
+    const wcSupported = typeof window.VideoEncoder !== 'undefined'
+                     && typeof window.VideoFrame !== 'undefined'
+                     && typeof window.MediaStreamTrackProcessor !== 'undefined'
+                     && typeof window.Mp4Muxer !== 'undefined';
     if (!hasBridge) {
-      recStartBtn.disabled = true;
-      recStopBtn.disabled = true;
-      recListBtn.disabled = true;
       recBadge.textContent = '✗ Bridge 未注入';
+      recBadge.className = 'status status-error';
+    } else if (!wcSupported) {
+      recBadge.textContent = '✗ WebCodecs 不可用';
       recBadge.className = 'status status-error';
     }
 
-    recStartBtn.addEventListener('click', () => {
-      if (!hasBridge) return;
-      console.log('[Roam] 调 RoamBridge.startRecording()');
-      window.RoamBridge.startRecording();
-    });
-
-    recStopBtn.addEventListener('click', () => {
-      if (!hasBridge) return;
-      window.RoamBridge.stopRecording();
-      recStopBtn.disabled = true;
+    function onPlayCanvasReady() {
+      if (!hasBridge || !wcSupported) return;
       recStartBtn.disabled = false;
-      recBadge.textContent = '已停止';
+      recBadge.textContent = '✓ 可录 MP4';
       recBadge.className = 'status status-ready';
-      // 等 MediaRecorder 落盘,再刷新列表
-      setTimeout(refreshRecList, 600);
-    });
+    }
 
+    recStartBtn.addEventListener('click', startWebCodecsRecording);
+    recStopBtn.addEventListener('click', stopWebCodecsRecording);
     recListBtn.addEventListener('click', refreshRecList);
 
-    // Kotlin 端启动录制后回调
-    window.onRecordingStarted = function () {
-      console.log('[Roam] onRecordingStarted');
-      recStartBtn.disabled = true;
-      recStopBtn.disabled = false;
-      recBadge.textContent = '🔴 录制中';
-      recBadge.className = 'status status-error';
-    };
-    window.onRecordingDenied = function () {
-      console.warn('[Roam] onRecordingDenied');
-      recBadge.textContent = '✗ 用户拒绝';
-      recBadge.className = 'status status-error';
-    };
+    async function startWebCodecsRecording() {
+      const canvas = document.getElementById('pc-canvas');
+      if (!pcApp || !canvas) {
+        alert('请先点 ② 启动 PlayCanvas 场景');
+        return;
+      }
+      try {
+        // canvas 实际像素尺寸(不是 CSS 尺寸,因为 PlayCanvas FILLMODE 会拉伸)
+        // H.264 要求宽高都是偶数,floor 到偶数
+        let w = (canvas.width || canvas.clientWidth) & ~1;
+        let h = (canvas.height || canvas.clientHeight) & ~1;
+        if (w < 32 || h < 32) {
+          alert('canvas 尺寸太小: ' + w + 'x' + h);
+          return;
+        }
+        console.log('[Roam] WebCodecs 录制尺寸:', w, 'x', h, 'fps=', REC_FPS, 'bitrate=', REC_BITRATE);
+
+        // mp4 muxer
+        mp4Muxer = new Mp4Muxer.Muxer({
+          target: new Mp4Muxer.ArrayBufferTarget(),
+          video: { codec: 'avc', width: w, height: h },
+          fastStart: 'in-memory',
+        });
+
+        // VideoEncoder(系统硬件 H.264)
+        videoEncoder = new VideoEncoder({
+          output: (chunk, meta) => mp4Muxer.addVideoChunk(chunk, meta),
+          error: (e) => {
+            console.error('[Roam] VideoEncoder error:', e);
+            recBadge.textContent = '✗ 编码错';
+            recBadge.className = 'status status-error';
+          },
+        });
+
+        // avc1.42E01F = H.264 Baseline Level 3.1(广泛兼容,微信肯定能播)
+        const cfg = {
+          codec: 'avc1.42E01F',
+          width: w,
+          height: h,
+          bitrate: REC_BITRATE,
+          framerate: REC_FPS,
+        };
+        const support = await VideoEncoder.isConfigSupported(cfg);
+        if (!support.supported) {
+          alert('VideoEncoder 不支持配置: ' + JSON.stringify(cfg));
+          return;
+        }
+        videoEncoder.configure(cfg);
+
+        // 用 captureStream + MediaStreamTrackProcessor 拿 VideoFrame
+        // 这样 VideoFrame 从 MediaStream pipeline 出来,colorSpace 等元数据自动设置
+        // 直接 new VideoFrame(canvas) 在 WebGL canvas 上会 colorSpace=null 报错
+        recStream = canvas.captureStream(REC_FPS);
+        const track = recStream.getVideoTracks()[0];
+        const processor = new MediaStreamTrackProcessor({ track });
+        recFrameReader = processor.readable.getReader();
+
+        recStartTime = performance.now();
+        recFrameCount = 0;
+        recRecording = true;
+        recStartBtn.disabled = true;
+        recStopBtn.disabled = false;
+        recBadge.textContent = '🔴 录制中(MP4)';
+        recBadge.className = 'status status-error';
+        recTimer.style.display = 'block';
+        recTimerInterval = setInterval(updateRecTimer, 200);
+        if (window.RoamBridge.toast) window.RoamBridge.toast('开始录 MP4');
+
+        readFramesLoop();
+      } catch (e) {
+        console.error('[Roam] startWebCodecsRecording 失败:', e);
+        alert('启动失败: ' + e.message);
+      }
+    }
+
+    async function readFramesLoop() {
+      try {
+        while (recRecording) {
+          const { value: frame, done } = await recFrameReader.read();
+          if (done || !frame) break;
+          if (!recRecording) { frame.close(); break; }
+          try {
+            videoEncoder.encode(frame, { keyFrame: recFrameCount % REC_FPS === 0 });
+          } catch (e) {
+            console.warn('[Roam] encode skipped:', e.message);
+          }
+          frame.close();
+          recFrameCount++;
+        }
+      } catch (e) {
+        console.error('[Roam] readFramesLoop error:', e);
+      }
+    }
+
+    function updateRecTimer() {
+      const elapsed = Math.floor((performance.now() - recStartTime) / 1000);
+      const mm = String(Math.floor(elapsed / 60)).padStart(2, '0');
+      const ss = String(elapsed % 60).padStart(2, '0');
+      recTimer.textContent = `${mm}:${ss} / 01:00 · ${recFrameCount}f`;
+      if (elapsed >= REC_MAX_SECONDS) stopWebCodecsRecording();
+    }
+
+    async function stopWebCodecsRecording() {
+      if (!recRecording) return;
+      recRecording = false;
+      clearInterval(recTimerInterval);
+      recTimer.style.display = 'none';
+      recStartBtn.disabled = false;
+      recStopBtn.disabled = true;
+      recBadge.textContent = '处理中…';
+      recBadge.className = 'status status-pending';
+      // 关掉 MediaStream pipeline
+      try {
+        if (recFrameReader) await recFrameReader.cancel();
+        if (recStream) recStream.getTracks().forEach(t => t.stop());
+      } catch (e) { /* ignore */ }
+
+      try {
+        await videoEncoder.flush();
+        videoEncoder.close();
+        mp4Muxer.finalize();
+        const buf = mp4Muxer.target.buffer;
+        const elapsed = Math.floor((performance.now() - recStartTime) / 1000);
+        const sizeMB = (buf.byteLength / 1024 / 1024).toFixed(2);
+        console.log(`[Roam] 录制完成: ${sizeMB}MB / ${elapsed}s / ${recFrameCount}帧`);
+
+        const ts = new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14);
+        const filename = `roam-${ts}.mp4`;
+        const base64 = arrayBufferToBase64(buf);
+        const path = window.RoamBridge.saveVideoBase64(filename, base64);
+        console.log('[Roam] 已保存:', path);
+        recBadge.textContent = `✓ ${sizeMB}MB / ${elapsed}s`;
+        recBadge.className = 'status status-ready';
+        setTimeout(refreshRecList, 300);
+      } catch (e) {
+        console.error('[Roam] 停止/保存失败:', e);
+        recBadge.textContent = '✗ ' + e.message;
+        recBadge.className = 'status status-error';
+      }
+      videoEncoder = null;
+      mp4Muxer = null;
+      recFrameReader = null;
+      recStream = null;
+    }
+
+    function arrayBufferToBase64(buf) {
+      const bytes = new Uint8Array(buf);
+      const CHUNK = 0x8000;
+      let result = '';
+      for (let i = 0; i < bytes.length; i += CHUNK) {
+        result += String.fromCharCode.apply(null, bytes.subarray(i, i + CHUNK));
+      }
+      return btoa(result);
+    }
+
+    window.onPlayCanvasReady = onPlayCanvasReady;
+    window.onRecordingStarted = function () {};
+    window.onRecordingDenied = function () {};
 
     function refreshRecList() {
       if (!hasBridge || !window.RoamBridge.listRecordings) return;
@@ -392,25 +564,47 @@
       }
       items.forEach((it) => {
         const row = document.createElement('div');
-        row.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.06);gap:8px;';
+        row.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.06);gap:6px;';
         const info = document.createElement('div');
         info.style.cssText = 'flex:1;min-width:0;';
         const name = document.createElement('div');
-        name.style.color = '#F8FAFC';
-        name.textContent = it.name;
+        name.style.cssText = 'color:#F8FAFC;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+        // 文件类型徽章
+        const isMp4 = it.name.endsWith('.mp4');
+        name.textContent = (isMp4 ? '🎬 ' : '🎥 ') + it.name;
         const meta = document.createElement('div');
         meta.style.cssText = 'font-size:10px;color:rgba(255,255,255,0.4);';
-        meta.textContent = (it.size / 1024 / 1024).toFixed(1) + ' MB · ' + new Date(it.mtime).toLocaleTimeString();
+        const mb = (it.size / 1024 / 1024).toFixed(1);
+        const sizeWarn = it.size === 0 ? ' ⚠ 空' : '';
+        meta.textContent = mb + ' MB · ' + new Date(it.mtime).toLocaleTimeString() + sizeWarn;
         info.appendChild(name);
         info.appendChild(meta);
+
+        const actions = document.createElement('div');
+        actions.style.cssText = 'display:flex;gap:6px;flex-shrink:0;';
+        // 分享按钮
         const shareBtn = document.createElement('button');
-        shareBtn.textContent = '分享微信';
-        shareBtn.style.cssText = 'flex-shrink:0;width:auto;padding:6px 12px;font-size:11px;background:linear-gradient(135deg,#06B6D4,#0891B2);box-shadow:0 4px 12px rgba(6,182,212,0.25);margin-top:0;';
+        shareBtn.textContent = '分享';
+        shareBtn.style.cssText = 'width:auto;padding:6px 10px;font-size:11px;background:linear-gradient(135deg,#06B6D4,#0891B2);box-shadow:0 4px 10px rgba(6,182,212,0.25);margin-top:0;';
         shareBtn.addEventListener('click', () => {
           window.RoamBridge.shareVideoToWeChat(it.path);
         });
+        // 删除按钮
+        const delBtn = document.createElement('button');
+        delBtn.textContent = '🗑';
+        delBtn.style.cssText = 'width:auto;padding:6px 10px;font-size:12px;background:rgba(239,68,68,0.12);color:#F87171;border:1px solid rgba(239,68,68,0.25);box-shadow:none;margin-top:0;';
+        delBtn.addEventListener('click', () => {
+          if (!confirm('删除 ' + it.name + ' ?')) return;
+          if (window.RoamBridge.deleteVideo) {
+            const ok = window.RoamBridge.deleteVideo(it.path);
+            if (ok) refreshRecList();
+            else alert('删除失败');
+          }
+        });
+        actions.appendChild(shareBtn);
+        actions.appendChild(delBtn);
         row.appendChild(info);
-        row.appendChild(shareBtn);
+        row.appendChild(actions);
         recList.appendChild(row);
       });
     }

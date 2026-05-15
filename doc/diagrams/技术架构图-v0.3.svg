@@ -1,0 +1,148 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 820" width="1200" height="820">
+  <defs>
+    <style>text { font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", "PingFang SC", "Hiragino Sans GB", sans-serif; }</style>
+    <marker id="arrow-blue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#2563eb"/>
+    </marker>
+    <marker id="arrow-purple" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#7c3aed"/>
+    </marker>
+    <marker id="arrow-green" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#16a34a"/>
+    </marker>
+    <marker id="arrow-gray" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#9ca3af"/>
+    </marker>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-opacity="0.10"/>
+    </filter>
+  </defs>
+  <rect width="1200" height="820" fill="#fafafa"/>
+  <text x="600" y="40" text-anchor="middle" font-size="22" font-weight="700" fill="#1e293b">Roam 技术架构 v0.3</text>
+  <text x="600" y="62" text-anchor="middle" font-size="13" fill="#64748b">本地优先 · Android WebView 套壳 · SPZ 端到端 · 微信视频分享</text>
+  <g id="layer1">
+    <rect x="40" y="100" width="820" height="120" rx="12" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.5"/>
+    <text x="60" y="125" font-size="13" font-weight="700" fill="#1e40af">Layer 1 · 手机扫描端</text>
+    <rect x="80" y="140" width="240" height="68" rx="8" fill="#ffffff" stroke="#3b82f6" stroke-width="1.5" filter="url(#shadow)"/>
+    <text x="200" y="166" text-anchor="middle" font-size="14" font-weight="600" fill="#1e293b">📷 Scaniverse (Niantic)</text>
+    <text x="200" y="184" text-anchor="middle" font-size="11" fill="#64748b">设备端处理 60-90s · 免费</text>
+    <text x="200" y="200" text-anchor="middle" font-size="11" fill="#64748b">绕过 WorkOS 国内可访问</text>
+    <rect x="380" y="140" width="200" height="68" rx="8" fill="#dbeafe" stroke="#3b82f6" stroke-width="1.5" filter="url(#shadow)"/>
+    <text x="480" y="166" text-anchor="middle" font-size="14" font-weight="600" fill="#1e293b">scene.spz</text>
+    <text x="480" y="184" text-anchor="middle" font-size="11" fill="#64748b">~10-12MB · Niantic 开源</text>
+    <text x="480" y="200" text-anchor="middle" font-size="11" fill="#64748b">留在手机文件系统</text>
+    <line x1="320" y1="174" x2="378" y2="174" stroke="#2563eb" stroke-width="2" marker-end="url(#arrow-blue)"/>
+    <text x="349" y="166" text-anchor="middle" font-size="10" fill="#2563eb">导出</text>
+    <rect x="620" y="148" width="220" height="56" rx="6" fill="#fef3c7" stroke="#d97706" stroke-width="1" stroke-dasharray="3,2"/>
+    <text x="730" y="170" text-anchor="middle" font-size="11" font-weight="600" fill="#92400e">✅ Q7 已关闭</text>
+    <text x="730" y="188" text-anchor="middle" font-size="10" fill="#78350f">不再经过电脑跑 SplatTransform</text>
+  </g>
+  <g id="layer2">
+    <rect x="40" y="260" width="820" height="440" rx="12" fill="#faf5ff" stroke="#8b5cf6" stroke-width="1.5"/>
+    <text x="60" y="285" font-size="13" font-weight="700" fill="#6b21a8">Layer 2 · Roam Android App (Kotlin + WebView)</text>
+    <rect x="60" y="305" width="780" height="115" rx="8" fill="#ffffff" stroke="#a78bfa" stroke-width="1" stroke-dasharray="4,3"/>
+    <text x="75" y="325" font-size="11" font-weight="600" fill="#6b21a8">原生层 (Kotlin)</text>
+    <rect x="80" y="338" width="160" height="68" rx="6" fill="#f5f3ff" stroke="#7c3aed" stroke-width="1.2"/>
+    <text x="160" y="362" text-anchor="middle" font-size="13" font-weight="600" fill="#1e293b">Activity</text>
+    <text x="160" y="380" text-anchor="middle" font-size="11" fill="#64748b">+ WebView</text>
+    <text x="160" y="396" text-anchor="middle" font-size="10" fill="#9ca3af">硬件加速 + WebGL</text>
+    <rect x="260" y="338" width="160" height="68" rx="6" fill="#f5f3ff" stroke="#7c3aed" stroke-width="1.2"/>
+    <text x="340" y="362" text-anchor="middle" font-size="13" font-weight="600" fill="#1e293b">Storage Access</text>
+    <text x="340" y="380" text-anchor="middle" font-size="11" fill="#64748b">Framework</text>
+    <text x="340" y="396" text-anchor="middle" font-size="10" fill="#9ca3af">选 .spz 文件</text>
+    <rect x="440" y="338" width="180" height="68" rx="6" fill="#f5f3ff" stroke="#7c3aed" stroke-width="1.2"/>
+    <text x="530" y="362" text-anchor="middle" font-size="13" font-weight="600" fill="#1e293b">Internal Storage</text>
+    <text x="530" y="380" text-anchor="middle" font-size="11" fill="#64748b">+ Room DB</text>
+    <text x="530" y="396" text-anchor="middle" font-size="10" fill="#9ca3af">本地场景库</text>
+    <rect x="640" y="338" width="180" height="68" rx="6" fill="#f5f3ff" stroke="#7c3aed" stroke-width="1.2"/>
+    <text x="730" y="362" text-anchor="middle" font-size="13" font-weight="600" fill="#1e293b">MediaProjection</text>
+    <text x="730" y="380" text-anchor="middle" font-size="11" fill="#64748b">录全屏 → MP4</text>
+    <text x="730" y="396" text-anchor="middle" font-size="10" fill="#9ca3af">1080p@30fps ≤ 25MB</text>
+    <rect x="80" y="430" width="740" height="32" rx="6" fill="#ddd6fe" stroke="#7c3aed" stroke-width="1.2"/>
+    <text x="450" y="450" text-anchor="middle" font-size="13" font-weight="700" fill="#5b21b6">JS Bridge (WebView.addJavascriptInterface ↔ Kotlin @JavascriptInterface)</text>
+    <rect x="60" y="475" width="780" height="200" rx="8" fill="#ffffff" stroke="#a78bfa" stroke-width="1" stroke-dasharray="4,3"/>
+    <text x="75" y="495" font-size="11" font-weight="600" fill="#6b21a8">Web 层 (assets/ HTML/CSS/JS)</text>
+    <rect x="80" y="510" width="160" height="68" rx="6" fill="#f5f3ff" stroke="#7c3aed" stroke-width="1.2"/>
+    <text x="160" y="534" text-anchor="middle" font-size="13" font-weight="600" fill="#1e293b">HTML / CSS / JS</text>
+    <text x="160" y="552" text-anchor="middle" font-size="11" fill="#64748b">Tailwind CDN</text>
+    <text x="160" y="568" text-anchor="middle" font-size="10" fill="#9ca3af">复用 prototypes</text>
+    <rect x="260" y="510" width="160" height="68" rx="6" fill="#f5f3ff" stroke="#7c3aed" stroke-width="1.2"/>
+    <text x="340" y="534" text-anchor="middle" font-size="13" font-weight="600" fill="#1e293b">PlayCanvas</text>
+    <text x="340" y="552" text-anchor="middle" font-size="11" fill="#64748b">Engine</text>
+    <text x="340" y="568" text-anchor="middle" font-size="10" fill="#9ca3af">H1/H2 ✅ 已验证</text>
+    <rect x="440" y="510" width="180" height="68" rx="6" fill="#fef3c7" stroke="#d97706" stroke-width="1.5"/>
+    <text x="530" y="534" text-anchor="middle" font-size="13" font-weight="600" fill="#1e293b">@spz-loader</text>
+    <text x="530" y="552" text-anchor="middle" font-size="11" fill="#64748b">/playcanvas (npm)</text>
+    <text x="530" y="568" text-anchor="middle" font-size="10" fill="#d97706">⚠️ 0.3.1 待 H9b 验证</text>
+    <rect x="640" y="510" width="180" height="68" rx="6" fill="#f5f3ff" stroke="#7c3aed" stroke-width="1.2"/>
+    <text x="730" y="534" text-anchor="middle" font-size="13" font-weight="600" fill="#1e293b">第一人称控制</text>
+    <text x="730" y="552" text-anchor="middle" font-size="11" fill="#64748b">触屏摇杆 + 拖视角</text>
+    <text x="730" y="568" text-anchor="middle" font-size="10" fill="#9ca3af">MVP 无物理碰撞 (Q8)</text>
+    <rect x="260" y="600" width="380" height="60" rx="8" fill="#dcfce7" stroke="#16a34a" stroke-width="1.5" filter="url(#shadow)"/>
+    <text x="450" y="624" text-anchor="middle" font-size="13" font-weight="700" fill="#15803d">Share Intent + FileProvider</text>
+    <text x="450" y="644" text-anchor="middle" font-size="11" fill="#166534">Intent.ACTION_SEND + video/mp4 → 系统分享面板</text>
+  </g>
+  <g id="output">
+    <rect x="280" y="730" width="340" height="68" rx="10" fill="#bbf7d0" stroke="#16a34a" stroke-width="2" filter="url(#shadow)"/>
+    <text x="450" y="756" text-anchor="middle" font-size="15" font-weight="700" fill="#14532d">💬 微信 (用户在系统面板选)</text>
+    <text x="450" y="778" text-anchor="middle" font-size="11" fill="#166534">发给朋友 / 朋友圈 → 接收方看视频</text>
+  </g>
+  <g id="phase2">
+    <rect x="900" y="260" width="270" height="440" rx="12" fill="#f9fafb" stroke="#9ca3af" stroke-width="1.5" stroke-dasharray="6,4"/>
+    <text x="1035" y="285" text-anchor="middle" font-size="13" font-weight="700" fill="#374151">Phase 2 退路 (暂不启用)</text>
+    <text x="1035" y="303" text-anchor="middle" font-size="10" fill="#6b7280">ADR-004 故意保留可启用性</text>
+    <rect x="920" y="330" width="230" height="48" rx="6" fill="#ffffff" stroke="#d1d5db" stroke-width="1"/>
+    <text x="1035" y="350" text-anchor="middle" font-size="12" font-weight="600" fill="#374151">Cloudflare Account</text>
+    <text x="1035" y="368" text-anchor="middle" font-size="10" fill="#6b7280">✅ 已注册</text>
+    <rect x="920" y="388" width="230" height="48" rx="6" fill="#ffffff" stroke="#d1d5db" stroke-width="1"/>
+    <text x="1035" y="408" text-anchor="middle" font-size="12" font-weight="600" fill="#374151">Wrangler CLI 4.90.1</text>
+    <text x="1035" y="426" text-anchor="middle" font-size="10" fill="#6b7280">✅ 已 login</text>
+    <rect x="920" y="446" width="230" height="48" rx="6" fill="#ffffff" stroke="#d1d5db" stroke-width="1"/>
+    <text x="1035" y="466" text-anchor="middle" font-size="12" font-weight="600" fill="#374151">R2 (对象存储)</text>
+    <text x="1035" y="484" text-anchor="middle" font-size="10" fill="#6b7280">❌ MVP 不启用</text>
+    <rect x="920" y="504" width="230" height="48" rx="6" fill="#ffffff" stroke="#d1d5db" stroke-width="1"/>
+    <text x="1035" y="524" text-anchor="middle" font-size="12" font-weight="600" fill="#374151">Pages (前端部署)</text>
+    <text x="1035" y="542" text-anchor="middle" font-size="10" fill="#6b7280">❌ MVP 不启用</text>
+    <rect x="920" y="562" width="230" height="48" rx="6" fill="#ffffff" stroke="#d1d5db" stroke-width="1"/>
+    <text x="1035" y="582" text-anchor="middle" font-size="12" font-weight="600" fill="#374151">Workers (后端 API)</text>
+    <text x="1035" y="600" text-anchor="middle" font-size="10" fill="#6b7280">❌ MVP 不启用</text>
+    <rect x="920" y="620" width="230" height="48" rx="6" fill="#ffffff" stroke="#d1d5db" stroke-width="1"/>
+    <text x="1035" y="640" text-anchor="middle" font-size="12" font-weight="600" fill="#374151">D1 (SQLite)</text>
+    <text x="1035" y="658" text-anchor="middle" font-size="10" fill="#6b7280">❌ MVP 不启用</text>
+    <text x="1035" y="685" text-anchor="middle" font-size="10" font-style="italic" fill="#6b7280">M3-M4 视情况启用</text>
+  </g>
+  <g id="flows">
+    <line x1="480" y1="210" x2="340" y2="335" stroke="#2563eb" stroke-width="2" marker-end="url(#arrow-blue)"/>
+    <rect x="370" y="262" width="80" height="20" fill="#fafafa" opacity="0.95"/>
+    <text x="410" y="277" text-anchor="middle" font-size="11" fill="#2563eb">.spz 导入</text>
+    <line x1="420" y1="372" x2="438" y2="372" stroke="#7c3aed" stroke-width="1.5" marker-end="url(#arrow-purple)"/>
+    <line x1="530" y1="408" x2="450" y2="428" stroke="#7c3aed" stroke-width="1.5" stroke-dasharray="4,2" marker-end="url(#arrow-purple)"/>
+    <line x1="450" y1="464" x2="530" y2="508" stroke="#7c3aed" stroke-width="1.5" marker-end="url(#arrow-purple)"/>
+    <line x1="438" y1="544" x2="422" y2="544" stroke="#7c3aed" stroke-width="1.5" marker-end="url(#arrow-purple)"/>
+    <line x1="420" y1="556" x2="638" y2="556" stroke="#7c3aed" stroke-width="1.2" stroke-dasharray="3,2"/>
+    <line x1="730" y1="510" x2="730" y2="408" stroke="#7c3aed" stroke-width="1.5" marker-end="url(#arrow-purple)"/>
+    <rect x="700" y="450" width="60" height="20" fill="#faf5ff" opacity="0.95"/>
+    <text x="730" y="465" text-anchor="middle" font-size="10" fill="#7c3aed">录全屏</text>
+    <line x1="730" y1="408" x2="640" y2="600" stroke="#16a34a" stroke-width="2" marker-end="url(#arrow-green)"/>
+    <rect x="640" y="490" width="80" height="20" fill="#fafafa" opacity="0.95"/>
+    <text x="680" y="505" text-anchor="middle" font-size="11" fill="#16a34a">MP4 文件</text>
+    <line x1="450" y1="660" x2="450" y2="728" stroke="#16a34a" stroke-width="2.5" marker-end="url(#arrow-green)"/>
+    <line x1="862" y1="480" x2="898" y2="480" stroke="#9ca3af" stroke-width="1.5" stroke-dasharray="6,3" marker-end="url(#arrow-gray)"/>
+    <rect x="855" y="455" width="55" height="18" fill="#fafafa" opacity="0.95"/>
+    <text x="882" y="468" text-anchor="middle" font-size="10" fill="#6b7280" font-style="italic">未来</text>
+  </g>
+  <g id="legend" transform="translate(40, 740)">
+    <rect x="0" y="0" width="220" height="65" rx="6" fill="#ffffff" stroke="#e5e7eb" stroke-width="1"/>
+    <text x="110" y="16" text-anchor="middle" font-size="11" font-weight="700" fill="#374151">图例</text>
+    <line x1="14" y1="30" x2="36" y2="30" stroke="#2563eb" stroke-width="2" marker-end="url(#arrow-blue)"/>
+    <text x="42" y="34" font-size="10" fill="#374151">数据/文件流</text>
+    <line x1="118" y1="30" x2="140" y2="30" stroke="#7c3aed" stroke-width="2" marker-end="url(#arrow-purple)"/>
+    <text x="146" y="34" font-size="10" fill="#374151">App 内部</text>
+    <line x1="14" y1="50" x2="36" y2="50" stroke="#16a34a" stroke-width="2" marker-end="url(#arrow-green)"/>
+    <text x="42" y="54" font-size="10" fill="#374151">视频/分享</text>
+    <line x1="118" y1="50" x2="140" y2="50" stroke="#9ca3af" stroke-width="2" stroke-dasharray="4,2" marker-end="url(#arrow-gray)"/>
+    <text x="146" y="54" font-size="10" fill="#374151">Phase 2 退路</text>
+  </g>
+  <text x="600" y="810" text-anchor="middle" font-size="10" fill="#9ca3af">Roam · 2026-05-15 · 关联 ADR-004 / ADR-005 / 06 v0.4 · 03 v0.3</text>
+</svg>

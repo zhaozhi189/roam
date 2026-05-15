@@ -144,6 +144,36 @@ class RoamBridge(
         }
     }
 
+    /**
+     * 用系统视频播放器打开本地视频(WebView <video> 标签直接读 internal storage 路径有限制,
+     * 用 Intent.ACTION_VIEW + FileProvider 跳到系统视频 App 最直接)
+     */
+    @JavascriptInterface
+    fun openVideoExternal(filePath: String) {
+        Log.d(TAG, "openVideoExternal() filePath=$filePath")
+        activity.runOnUiThread {
+            try {
+                val file = java.io.File(filePath)
+                if (!file.exists()) {
+                    Toast.makeText(activity, "文件不存在", Toast.LENGTH_SHORT).show()
+                    return@runOnUiThread
+                }
+                val authority = "${activity.packageName}.fileprovider"
+                val uri = androidx.core.content.FileProvider.getUriForFile(activity, authority, file)
+                val mime = if (filePath.endsWith(".mp4")) "video/mp4" else "video/webm"
+                val intent = Intent(Intent.ACTION_VIEW).apply {
+                    setDataAndType(uri, mime)
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                activity.startActivity(Intent.createChooser(intent, "用什么打开?"))
+            } catch (e: Exception) {
+                Log.e(TAG, "openVideoExternal 失败", e)
+                Toast.makeText(activity, "打开失败: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
     @JavascriptInterface
     fun toast(message: String) {
         activity.runOnUiThread {

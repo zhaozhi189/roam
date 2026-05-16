@@ -132,11 +132,11 @@
       </div>
     </div>
 
-    <!-- Test 3: H9b SPZ 加载(JS Bridge 接入 SAF) -->
+    <!-- Test 3: H9b 自带文件加载 — PLY 直接真渲染,SPZ 留 M2 -->
     <div class="card">
-      <h2>③ H9b · @spz-loader 加载 SPZ <span class="status status-pending" id="spz-badge">JS Bridge 就绪</span></h2>
-      <div class="meta">点按钮唤起系统文件选择器(SAF),选个 .spz 文件 → URI 通过 JS Bridge 回传。@spz-loader 集成 M1 后段接</div>
-      <button id="spz-pick-btn">选 SPZ 文件(调系统 SAF)</button>
+      <h2>③ H9b · 选自己的 .ply / .sog / .spz <span class="status status-pending" id="spz-badge">JS Bridge 就绪</span></h2>
+      <div class="meta">SAF 选文件。**PLY 自动加载到 ② 真渲染**(覆盖当前场景);SPZ 暂只 magic byte 验证(M2 接 @spz-loader)</div>
+      <button id="spz-pick-btn">选文件(.ply / .sog / .spz)</button>
       <div id="spz-result" style="display:none; margin-top:12px; font-family:ui-monospace,monospace; font-size:11px; color:rgba(255,255,255,0.7); word-break:break-all; padding:10px 12px; background:rgba(6,182,212,0.08); border:1px solid rgba(6,182,212,0.20); border-radius:8px;"></div>
     </div>
 
@@ -231,6 +231,17 @@
       document.getElementById('pc-start-guitar').disabled = false;
       document.getElementById('pc-start-guitar').addEventListener('click', () => startGSplatScene('scenes/guitar.compressed.ply', '🎸 吉他'));
       console.log('[Roam] PlayCanvas loaded:', pc.version);
+      // URL hash 自动测试:启动时 query string ?auto=xxx,运行中 RoamBridge.runAuto('xxx')
+      function runAuto(cmd) {
+        const map = { apartment: 'pc-start-apt', guitar: 'pc-start-guitar', cube: 'pc-start',
+                      record: 'rec-start-btn', stop: 'rec-stop-btn', list: 'rec-list-btn',
+                      pick: 'spz-pick-btn' };
+        const btn = document.getElementById(map[cmd]);
+        if (btn) btn.click();
+      }
+      window.runAuto = runAuto;
+      const auto = (new URLSearchParams(location.search)).get('auto');
+      if (auto) setTimeout(() => runAuto(auto), 600);
     }
     function onPcError() {
       const status = document.getElementById('pc-status');
@@ -253,8 +264,16 @@
       const canvas = document.getElementById('pc-canvas');
       const status = document.getElementById('pc-status');
       const fpsEl = document.getElementById('pc-fps');
+      const badge = document.getElementById('pc-badge');
+      // 清旧 app(从 3DGS 切回立方体时复用 canvas)
+      if (pcApp) {
+        try { pcApp.destroy(); } catch (e) { console.warn('[Roam] old pcApp destroy:', e); }
+        pcApp = null;
+      }
       status.style.display = 'none';
       fpsEl.style.display = 'block';
+      badge.textContent = '✓ 🎲 立方体';
+      badge.className = 'status status-ready';
 
       pcApp = new pc.Application(canvas, {});
       pcApp.setCanvasFillMode(pc.FILLMODE_FILL_WINDOW);
@@ -441,16 +460,36 @@
         const magic = String.fromCharCode(view[0], view[1], view[2], view[3]);
         const isSpz = magic === 'NGSP';
         const isPly = magic === 'ply\n' || magic.startsWith('ply');
+        // SOG 是 PlayCanvas 自定义 ZIP-based 格式,前两字节通常是 'PK'(ZIP magic)
+        const isSog = view[0] === 0x50 && view[1] === 0x4B;
         const sizeMB = (buf.byteLength / 1024 / 1024).toFixed(2);
         const hex = Array.from(view).map(b => b.toString(16).padStart(2, '0')).join(' ');
-        const fmt = isSpz ? '✅ SPZ' : isPly ? '⚠️ PLY(支持但建议 SPZ)' : '⚠️ 未知格式';
-        spzResult.textContent =
-          `✓ fetch 成功 ${sizeMB} MB · ${fetchMs}ms\n` +
-          `格式: ${fmt} · Magic="${magic}"\n` +
-          `头 8 byte hex: ${hex}\n` +
-          `下一步:M2 接 @spz-loader 加载到 PlayCanvas 渲染漫游`;
-        if (window.RoamBridge.toast) {
-          window.RoamBridge.toast(`SPZ 文件读取 ${sizeMB} MB`);
+
+        // PLY 或 SOG → 真渲染(blob URL 喂给 startGSplatScene,跳过再次 fetch)
+        if (isPly || isSog) {
+          const fmt = isPly ? '✅ PLY' : '✅ SOG';
+          spzResult.textContent =
+            `✓ fetch 成功 ${sizeMB} MB · ${fetchMs}ms\n` +
+            `格式: ${fmt} · Magic="${magic}" · hex=${hex}\n` +
+            `→ 加载到 ② canvas 真渲染中…`;
+          const blob = new Blob([buf]);
+          const blobUrl = URL.createObjectURL(blob);
+          const filename = uri.split('/').pop() || (isPly ? 'user.ply' : 'user.sog');
+          if (window.RoamBridge.toast) window.RoamBridge.toast(`加载 ${sizeMB} MB ${fmt}`);
+          await startGSplatScene(blobUrl, '📂 ' + filename);
+          spzResult.textContent += `\n✅ 渲染中(看 ② canvas)`;
+        } else if (isSpz) {
+          spzResult.textContent =
+            `✓ fetch 成功 ${sizeMB} MB · ${fetchMs}ms\n` +
+            `格式: ✅ SPZ · Magic="${magic}"\n` +
+            `头 8 byte hex: ${hex}\n` +
+            `⏸ SPZ 真渲染留 M2(需 @spz-loader/playcanvas ESM 集成)`;
+          if (window.RoamBridge.toast) window.RoamBridge.toast(`SPZ 读取 ${sizeMB} MB`);
+        } else {
+          spzResult.textContent =
+            `⚠️ 未知格式 · ${sizeMB} MB · ${fetchMs}ms\n` +
+            `Magic="${magic}" · hex=${hex}\n` +
+            `支持:.ply / .sog / .spz`;
         }
       } catch (e) {
         console.error('[Roam] SPZ fetch 失败:', e);
@@ -588,6 +627,18 @@
         alert('启动失败: ' + e.message);
       }
     }
+
+    // 切走 App(按 Home / 锁屏 / 来电)时,WebView pause → captureStream 给空帧
+    // 自动停录保存已录部分(避免回 App 后 encoder 状态错乱 → 已录视频丢失)
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden && recRecording) {
+        console.log('[Roam] page hidden,自动停止录制保存已录部分');
+        if (window.RoamBridge && window.RoamBridge.toast) {
+          window.RoamBridge.toast('切走 App → 自动保存录制');
+        }
+        stopWebCodecsRecording();
+      }
+    });
 
     async function readFramesLoop() {
       try {

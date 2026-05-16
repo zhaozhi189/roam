@@ -93,6 +93,16 @@ class MainActivity : ComponentActivity() {
         // (debug build 才开;release 默认关闭防泄露)
         WebView.setWebContentsDebuggingEnabled(true)
         enableEdgeToEdge()
+        // 自动化测试桥:adb shell am broadcast -a com.roam.app.AUTO --es cmd guitar
+        registerReceiver(object : android.content.BroadcastReceiver() {
+            override fun onReceive(c: android.content.Context?, intent: Intent?) {
+                val cmd = intent?.getStringExtra("cmd") ?: return
+                val safe = JSONObject.quote(cmd)
+                Log.d(TAG, "AUTO broadcast cmd=$cmd")
+                webView?.post { webView?.evaluateJavascript("window.runAuto && window.runAuto($safe)", null) }
+            }
+        }, android.content.IntentFilter("com.roam.app.AUTO"),
+            android.content.Context.RECEIVER_EXPORTED)
         setContent {
             RoamTheme {
                 RoamWebView(
@@ -167,7 +177,13 @@ fun RoamWebView(
                     }
                 }
                 onWebViewCreated(this)
-                loadUrl("https://appassets.androidplatform.net/assets/index.html")
+                // 支持自动化测试 deep extra:adb shell am start -n com.roam.app/.MainActivity --es auto apartment
+                // 走 query string 比 hash 更稳(WebViewAssetLoader 对 hash 偶有 normalize)
+                val auto = (context as? Activity)?.intent?.getStringExtra("auto")
+                val base = "https://appassets.androidplatform.net/assets/index.html"
+                val url = if (auto != null) "$base?auto=$auto" else base
+                Log.d("RoamWebView", "loadUrl: $url (auto=$auto)")
+                loadUrl(url)
             }
         }
     )

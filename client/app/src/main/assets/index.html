@@ -255,9 +255,14 @@
       function runAuto(cmd) {
         const map = { apartment: 'pc-start-apt', guitar: 'pc-start-guitar', cube: 'pc-start',
                       record: 'rec-start-btn', stop: 'rec-stop-btn', list: 'rec-list-btn',
-                      pick: 'spz-pick-btn' };
+                      pick: 'spz-pick-btn',
+                      'qr-apt': 'qr-apt', 'qr-guitar': 'qr-guitar', 'qr-cube': 'qr-cube' };
         const btn = document.getElementById(map[cmd]);
-        if (btn) btn.click();
+        if (btn) {
+          btn.click();
+          // ⑤ 二维码在最底部,滚到可见
+          if (cmd.startsWith('qr-')) btn.scrollIntoView({ behavior: 'instant', block: 'center' });
+        }
       }
       window.runAuto = runAuto;
       const auto = (new URLSearchParams(location.search)).get('auto');

@@ -992,6 +992,9 @@
         recRecording = true;
         recStartBtn.disabled = true;
         recStopBtn.disabled = false;
+        // 录中锁场景按钮(防误触切场景导致视频内容跳变)
+        ['pc-start','pc-start-apt','pc-start-guitar','pc-start-spz','pc-start-skull','pc-start-biker']
+          .forEach(id => { const b = document.getElementById(id); if (b) b.disabled = true; });
         recBadge.textContent = '🔴 录制中(MP4)';
         recBadge.className = 'status status-error';
         recTimer.style.display = 'block';
@@ -1050,6 +1053,9 @@
       clearInterval(recTimerInterval);
       recTimer.style.display = 'none';
       recStartBtn.disabled = false;
+      // 解锁场景按钮
+      ['pc-start','pc-start-apt','pc-start-guitar','pc-start-spz','pc-start-skull','pc-start-biker']
+        .forEach(id => { const b = document.getElementById(id); if (b) b.disabled = false; });
       recStopBtn.disabled = true;
       recBadge.textContent = '处理中…';
       recBadge.className = 'status status-pending';

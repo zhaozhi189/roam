@@ -9,8 +9,11 @@ import android.util.Log
 import android.view.ViewGroup
 import android.webkit.ConsoleMessage
 import android.webkit.WebChromeClient
+import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import androidx.webkit.WebViewAssetLoader
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -136,7 +139,19 @@ fun RoamWebView(
                     builtInZoomControls = false
                     displayZoomControls = false
                 }
-                webViewClient = WebViewClient()
+
+                // WebViewAssetLoader 把 assets/ 暴露到 https://appassets.androidplatform.net/assets/
+                // 关键:用 https:// scheme 让 WebView 把 page 当成普通网页 → fetch() 才能正常工作
+                // file:// scheme 下 fetch() 在 Android 11+ 受同源策略限制,PlayCanvas 加载 .ply/.sog 会 Failed to fetch
+                val assetLoader = WebViewAssetLoader.Builder()
+                    .addPathHandler("/assets/", WebViewAssetLoader.AssetsPathHandler(context))
+                    .build()
+                webViewClient = object : WebViewClient() {
+                    override fun shouldInterceptRequest(
+                        view: WebView,
+                        request: WebResourceRequest
+                    ): WebResourceResponse? = assetLoader.shouldInterceptRequest(request.url)
+                }
                 webChromeClient = object : WebChromeClient() {
                     // 把 JS console.log/warn/error 桥到 Android logcat,tag = Roam/WebView
                     override fun onConsoleMessage(msg: ConsoleMessage): Boolean {
@@ -152,7 +167,7 @@ fun RoamWebView(
                     }
                 }
                 onWebViewCreated(this)
-                loadUrl("file:///android_asset/index.html")
+                loadUrl("https://appassets.androidplatform.net/assets/index.html")
             }
         }
     )

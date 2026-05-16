@@ -116,11 +116,15 @@
       <a href="https://playcanv.as/p/qxGSuzYq/" class="btn">打开在线 demo →</a>
     </div>
 
-    <!-- Test 2: H9a 本地 PlayCanvas 立方体 -->
+    <!-- Test 2: H9a 本地 PlayCanvas 场景(立方体 / 3DGS 真渲染)-->
     <div class="card">
-      <h2>② H9a · 本地 PlayCanvas 立方体 <span class="status status-pending" id="pc-badge">vendor 加载中…</span></h2>
-      <div class="meta">本地 vendor/playcanvas.min.js(2.2MB,完全离线),创建简单 3D 场景验证 WebGL + 引擎可用</div>
-      <button id="pc-start" disabled>启动 PlayCanvas 场景</button>
+      <h2>② H9a · 本地 PlayCanvas 场景 <span class="status status-pending" id="pc-badge">vendor 加载中…</span></h2>
+      <div class="meta">三选一启动场景到下方 canvas;④ 录屏录的就是这个 canvas。3DGS demo 文件 vendor 在 assets/scenes/(完全离线)</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;">
+        <button id="pc-start" disabled style="font-size:11px;padding:9px 8px;">🎲 立方体</button>
+        <button id="pc-start-apt" disabled style="font-size:11px;padding:9px 8px;">🏠 公寓(8MB)</button>
+        <button id="pc-start-guitar" disabled style="font-size:11px;padding:9px 8px;">🎸 吉他(1.5MB)</button>
+      </div>
       <div id="pc-canvas-wrap">
         <canvas id="pc-canvas"></canvas>
         <div id="pc-status">点上方按钮启动</div>
@@ -216,13 +220,16 @@
     // ====== PlayCanvas 加载状态处理(同步检查,不用 onload)======
     function onPcLoaded() {
       const status = document.getElementById('pc-status');
-      status.textContent = 'PlayCanvas ' + pc.version + ' 已就绪,点上方按钮启动';
+      status.textContent = 'PlayCanvas ' + pc.version + ' 已就绪,三选一启动场景';
       const badge = document.getElementById('pc-badge');
       badge.textContent = '✓ ' + pc.version;
       badge.className = 'status status-ready';
-      const btn = document.getElementById('pc-start');
-      btn.disabled = false;
-      btn.addEventListener('click', startPlayCanvasScene);
+      document.getElementById('pc-start').disabled = false;
+      document.getElementById('pc-start').addEventListener('click', startPlayCanvasScene);
+      document.getElementById('pc-start-apt').disabled = false;
+      document.getElementById('pc-start-apt').addEventListener('click', () => startGSplatScene('scenes/apartment.sog', '🏠 公寓'));
+      document.getElementById('pc-start-guitar').disabled = false;
+      document.getElementById('pc-start-guitar').addEventListener('click', () => startGSplatScene('scenes/guitar.compressed.ply', '🎸 吉他'));
       console.log('[Roam] PlayCanvas loaded:', pc.version);
     }
     function onPcError() {
@@ -288,6 +295,104 @@
       // 通知 ④ 录屏卡片:canvas 已可录
       if (typeof window.onPlayCanvasReady === 'function') {
         window.onPlayCanvasReady();
+      }
+    }
+
+    // ====== 启动 3DGS 真渲染场景(PlayCanvas Engine 2.x 内置 gsplat handler)======
+    async function startGSplatScene(url, sceneName) {
+      const canvas = document.getElementById('pc-canvas');
+      const status = document.getElementById('pc-status');
+      const fpsEl = document.getElementById('pc-fps');
+      const badge = document.getElementById('pc-badge');
+      status.style.display = 'flex';
+      status.textContent = '加载 ' + sceneName + '…';
+      fpsEl.style.display = 'none';
+      badge.textContent = '加载中…';
+      badge.className = 'status status-pending';
+
+      // 清理旧 app(三个按钮可以来回切)
+      if (pcApp) {
+        try { pcApp.destroy(); } catch (e) { console.warn('[Roam] old pcApp destroy:', e); }
+        pcApp = null;
+      }
+
+      try {
+        pcApp = new pc.Application(canvas, {});
+        pcApp.setCanvasFillMode(pc.FILLMODE_FILL_WINDOW);
+        pcApp.setCanvasResolution(pc.RESOLUTION_AUTO);
+
+        const camera = new pc.Entity('camera');
+        camera.addComponent('camera', { clearColor: new pc.Color(0.04, 0.06, 0.12) });
+        camera.setPosition(0, 0, 3);
+        pcApp.root.addChild(camera);
+
+        pcApp.start();
+
+        // 加载 GSplat asset(.sog / .ply / .compressed.ply 都走同一路径)
+        const t0 = performance.now();
+        const asset = new pc.Asset(sceneName, 'gsplat', { url });
+        pcApp.assets.add(asset);
+        await new Promise((resolve, reject) => {
+          asset.once('load', resolve);
+          asset.once('error', (err) => reject(new Error(String(err))));
+          pcApp.assets.load(asset);
+        });
+        const loadMs = (performance.now() - t0).toFixed(0);
+        console.log('[Roam] GSplat loaded:', sceneName, 'in', loadMs, 'ms');
+
+        const splat = new pc.Entity('splat');
+        splat.addComponent('gsplat', { asset });
+        pcApp.root.addChild(splat);
+
+        // 自适应:从 splat resource 拿 AABB 决定相机距离
+        let center = new pc.Vec3(0, 0, 0);
+        let radius = 3;
+        const aabb = asset.resource && asset.resource.aabb;
+        if (aabb) {
+          center = aabb.center.clone();
+          radius = Math.max(aabb.halfExtents.length() * 1.8, 1.5);
+        }
+        console.log('[Roam] AABB center=', center.toString(), 'radius=', radius);
+
+        // 自动轨道相机(漫游感)
+        let angle = 0;
+        let frames = 0;
+        let lastT = performance.now();
+        pcApp.on('update', (dt) => {
+          angle += dt * 0.25;
+          camera.setPosition(
+            center.x + Math.cos(angle) * radius,
+            center.y + radius * 0.25,
+            center.z + Math.sin(angle) * radius
+          );
+          camera.lookAt(center);
+          frames++;
+          const now = performance.now();
+          if (now - lastT >= 1000) {
+            fpsEl.textContent = 'FPS: ' + frames + ' · ' + sceneName;
+            frames = 0; lastT = now;
+          }
+        });
+
+        status.style.display = 'none';
+        fpsEl.style.display = 'block';
+        badge.textContent = '✓ ' + sceneName + ' (' + loadMs + 'ms)';
+        badge.className = 'status status-ready';
+
+        if (typeof window.onPlayCanvasReady === 'function') window.onPlayCanvasReady();
+      } catch (err) {
+        const msg = (err && err.message) || String(err);
+        const stack = (err && err.stack) || '(无 stack)';
+        console.error('[Roam] startGSplatScene 失败:', err);
+        // 屏幕上显示完整错误(供拍照)
+        status.style.display = 'flex';
+        status.style.cssText += ';color:#F87171;background:rgba(239,68,68,0.15);padding:12px;font-family:ui-monospace,monospace;font-size:10px;line-height:1.4;white-space:pre-wrap;text-align:left;align-items:flex-start;justify-content:flex-start;overflow:auto;';
+        status.textContent = '❌ ' + sceneName + '\nmsg: ' + msg + '\n\nstack:\n' + stack.split('\n').slice(0, 6).join('\n');
+        badge.textContent = '✗ ' + sceneName;
+        badge.className = 'status status-error';
+        // Toast 弹给用户看 + 写 logcat
+        if (window.RoamBridge && window.RoamBridge.toast) window.RoamBridge.toast('Splat 错: ' + msg);
+        if (window.RoamBridge && window.RoamBridge.log) window.RoamBridge.log('GSplatError', sceneName + ' | ' + msg + ' | ' + stack);
       }
     }
 

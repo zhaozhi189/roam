@@ -320,7 +320,7 @@
             const resp = await fetch('scenes/hornedlizard.spz');
             if (!resp.ok) throw new Error('HTTP ' + resp.status);
             const buf = await resp.arrayBuffer();
-            await startSpzScene(buf, '🦎 蜥蜴');
+            await startSpzScene(buf, '🦎 蜥蜴', 'lizard');
           } catch (e) {
             console.error('[Roam] vendor SPZ 加载失败:', e);
           } finally {
@@ -373,6 +373,11 @@
 
     // ====== 启动 PlayCanvas 立方体场景 ======
     let pcApp = null;
+    // 录屏 / 截屏文件名里嵌的场景标识(简短英文)
+    let currentSceneTag = 'cube';
+    function setCurrentScene(tag) {
+      currentSceneTag = (tag || 'scene').replace(/[^a-zA-Z0-9_-]/g, '-').toLowerCase().slice(0, 24) || 'scene';
+    }
     function startPlayCanvasScene() {
       const canvas = document.getElementById('pc-canvas');
       const status = document.getElementById('pc-status');
@@ -383,6 +388,7 @@
         try { pcApp.destroy(); } catch (e) { console.warn('[Roam] old pcApp destroy:', e); }
         pcApp = null;
       }
+      setCurrentScene('cube');
       status.style.display = 'none';
       fpsEl.style.display = 'block';
       badge.textContent = '✓ 🎲 立方体';
@@ -447,6 +453,9 @@
         try { pcApp.destroy(); } catch (e) { console.warn('[Roam] old pcApp destroy:', e); }
         pcApp = null;
       }
+      // 从 url 推 scene tag(scenes/apartment.sog → apartment;blob: → user-file)
+      const m = url.match(/scenes\/([\w-]+)/);
+      setCurrentScene(m ? m[1] : (url.startsWith('blob:') ? 'user-file' : 'scene'));
 
       try {
         pcApp = new pc.Application(canvas, { graphicsDeviceOptions: { preserveDrawingBuffer: true } });
@@ -562,7 +571,7 @@
     }
 
     // ====== D · 启动 SPZ 场景(@spz-loader/playcanvas UMD)======
-    async function startSpzScene(spzBuffer, sceneName) {
+    async function startSpzScene(spzBuffer, sceneName, sceneTag) {
       const canvas = document.getElementById('pc-canvas');
       const status = document.getElementById('pc-status');
       const fpsEl = document.getElementById('pc-fps');
@@ -571,6 +580,7 @@
       badge.textContent = 'SPZ 解码中…';
       badge.className = 'status status-pending';
       setLoadingStatus('加载 ' + sceneName + '…(WASM 解码 1-3s)');
+      setCurrentScene(sceneTag || 'spz');
 
       if (pcApp) {
         try { pcApp.destroy(); } catch (e) { console.warn('[Roam] old pcApp destroy:', e); }
@@ -800,7 +810,7 @@
             `→ @spz-loader 解码 + 渲染…(首次 WASM 编译 1-2s)`;
           if (window.RoamBridge.toast) window.RoamBridge.toast(`SPZ 解码 ${sizeMB} MB`);
           const filename = uri.split('/').pop() || 'user.spz';
-          await startSpzScene(buf, '📂 ' + filename);
+          await startSpzScene(buf, '📂 ' + filename, 'user-spz');
           spzResult.textContent += `\n✅ 渲染中(看 ② canvas)`;
         } else {
           spzResult.textContent =
@@ -1016,7 +1026,7 @@
         console.log(`[Roam] 录制完成: ${sizeMB}MB / ${elapsed}s / ${recFrameCount}帧`);
 
         const ts = new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14);
-        const filename = `roam-${ts}.mp4`;
+        const filename = `roam-${currentSceneTag}-${ts}.mp4`;
         const base64 = arrayBufferToBase64(buf);
         const path = window.RoamBridge.saveVideoBase64(filename, base64);
         console.log('[Roam] 已保存:', path);
@@ -1198,7 +1208,7 @@
         const base64 = dataUrl.split(',', 2)[1];
         if (!base64) throw new Error('toDataURL 返回空(WebGL preserveDrawingBuffer?)');
         const ts = new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14);
-        const filename = `roam-${ts}.png`;
+        const filename = `roam-${currentSceneTag}-${ts}.png`;
         const path = window.RoamBridge.saveVideoBase64(filename, base64);
         const sizeKB = Math.round(base64.length * 0.75 / 1024);
         snapBadge.textContent = `✓ ${sizeKB}KB`;

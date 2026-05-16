@@ -1,8 +1,11 @@
 package com.roam.app
 
 import android.app.Activity
+import android.content.ContentValues
 import android.content.Intent
 import android.os.Build
+import android.os.Environment
+import android.provider.MediaStore
 import android.util.Base64
 import android.util.Log
 import android.webkit.JavascriptInterface
@@ -87,10 +90,15 @@ class RoamBridge(
     }
 
     /**
-     * B 路径 H7(已退役但保留兼容):JS 端 canvas.captureStream + MediaRecorder 录到 Blob → base64,
-     * 通过这个方法落盘到 internal storage filesDir/recordings/
+     * 接收 JS 端 base64 编码的 blob 落盘:
+     * 1) internal storage filesDir/recordings/(App 内列表用,▶/分享/🗑 调这个路径)
+     * 2) MediaStore 公共目录 Movies/Roam/ 或 Pictures/Roam/(系统图库/相册直接看到,用户友好)
      *
-     * @return 文件绝对路径(失败返回空字符串)
+     * 文件名后缀决定 collection:
+     *   .mp4/.webm → MediaStore.Video.Media (Movies/Roam/)
+     *   .png       → MediaStore.Images.Media (Pictures/Roam/)
+     *
+     * @return internal storage 绝对路径
      */
     @JavascriptInterface
     fun saveVideoBase64(filename: String, base64: String): String {
@@ -101,11 +109,51 @@ class RoamBridge(
             val bytes = Base64.decode(base64, Base64.DEFAULT)
             FileOutputStream(out).use { it.write(bytes) }
             Log.d(TAG, "saveVideoBase64 写入 ${out.absolutePath} (${bytes.size} bytes)")
+            // 同步导一份到系统图库(失败不影响 App 内功能)
+            try { exportToMediaStore(safeName, bytes) }
+            catch (e: Exception) { Log.w(TAG, "exportToMediaStore 失败(忽略): ${e.message}") }
             out.absolutePath
         } catch (e: Exception) {
             Log.e(TAG, "saveVideoBase64 失败", e)
             ""
         }
+    }
+
+    /**
+     * 把 bytes 写到 MediaStore 公共目录,用户在系统「图库 / 相册」直接看到。
+     * Android 10+(API 29+)用 scoped storage 友好的 MediaStore API,无需 WRITE_EXTERNAL_STORAGE。
+     * Android 9 及以下跳过(legacy 路径要 WRITE 权限,不值得)。
+     */
+    private fun exportToMediaStore(filename: String, bytes: ByteArray) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return
+        val isImage = filename.endsWith(".png")
+        val isVideo = filename.endsWith(".mp4") || filename.endsWith(".webm")
+        if (!isImage && !isVideo) return
+
+        val collection = if (isImage)
+            MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+        else
+            MediaStore.Video.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+        val relativePath = if (isImage) "${Environment.DIRECTORY_PICTURES}/Roam"
+                           else         "${Environment.DIRECTORY_MOVIES}/Roam"
+        val mime = when {
+            filename.endsWith(".mp4") -> "video/mp4"
+            filename.endsWith(".webm") -> "video/webm"
+            filename.endsWith(".png") -> "image/png"
+            else -> "*/*"
+        }
+        val values = ContentValues().apply {
+            put(MediaStore.MediaColumns.DISPLAY_NAME, filename)
+            put(MediaStore.MediaColumns.MIME_TYPE, mime)
+            put(MediaStore.MediaColumns.RELATIVE_PATH, relativePath)
+            put(MediaStore.MediaColumns.IS_PENDING, 1)
+        }
+        val uri = activity.contentResolver.insert(collection, values) ?: return
+        activity.contentResolver.openOutputStream(uri)?.use { it.write(bytes) }
+        values.clear()
+        values.put(MediaStore.MediaColumns.IS_PENDING, 0)
+        activity.contentResolver.update(uri, values, null, null)
+        Log.d(TAG, "MediaStore 导出 $relativePath/$filename → uri=$uri")
     }
 
     /**

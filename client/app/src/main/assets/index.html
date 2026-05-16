@@ -355,13 +355,26 @@
       function runAuto(cmd) {
         const map = { apartment: 'pc-start-apt', guitar: 'pc-start-guitar', cube: 'pc-start', spz: 'pc-start-spz', skull: 'pc-start-skull', biker: 'pc-start-biker',
                       record: 'rec-start-btn', stop: 'rec-stop-btn', list: 'rec-list-btn',
-                      pick: 'spz-pick-btn',
+                      pick: 'spz-pick-btn', snap: 'snap-btn', scan: 'scan-btn',
                       'qr-apt': 'qr-apt', 'qr-guitar': 'qr-guitar', 'qr-cube': 'qr-cube' };
+        // 特殊 cmd:无对应按钮,直接调函数
+        if (cmd === 'immersive') {
+          if (typeof toggleFullscreen === 'function') toggleFullscreen();
+          return;
+        }
+        if (cmd === 'reset-view') {
+          // 没有专用按钮,模拟双击效果 — 简化:发自定义事件让 attachOrbitTouch 内 logic 处理
+          // 实际实现:重新启动当前场景(粗暴但有效)
+          if (lastSceneStarter) lastSceneStarter();
+          return;
+        }
         const btn = document.getElementById(map[cmd]);
         if (btn) {
           btn.click();
-          // ⑤ 二维码在最底部,滚到可见
-          if (cmd.startsWith('qr-')) btn.scrollIntoView({ behavior: 'instant', block: 'center' });
+          // ⑤ 二维码 / ⑥ 扫码 / ⑦ 截屏 这些在底部,滚到可见
+          if (cmd.startsWith('qr-') || cmd === 'scan' || cmd === 'snap') {
+            btn.scrollIntoView({ behavior: 'instant', block: 'center' });
+          }
         }
       }
       window.runAuto = runAuto;

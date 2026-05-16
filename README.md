@@ -24,17 +24,30 @@
 
 ```bash
 cd client
+export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"   # JDK 21
 ./gradlew assembleDebug
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 adb shell am start -n com.roam.app/.MainActivity
 ```
 
-`assembleDebug` 需要 JDK 21:
+启动后默认加载 🏠 公寓场景。**单指拖 = 转视角,双指捏 = 缩放,双击 canvas = 复位,⛶ = 沉浸,Back = 退沉浸**。
+
+## 单元测试
+
 ```bash
-export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
+cd client
+./gradlew testDebugUnitTest        # JVM 直跑,无需设备(~3s,31 个测试)
 ```
 
-启动后默认加载 🏠 公寓场景。手指拖 = 转视角,双指捏 = 缩放,双击 = 复位。
+测试覆盖 `RoamLogic` 内的纯逻辑:
+- 路径越权检查(`deleteVideo` 安全 — 防 `../../etc/passwd`)
+- 文件名 sanitize(防注入)
+- mime 推断(微信分享 + 系统图库)
+- Deep link 解析(`roam://scene/<name>` 防 JS/SQL/Unicode 注入)
+- WebView 入口 URL 决策(deep link > extras > 默认 apartment)
+- 文件名 → 场景 tag 解析
+
+不测的(可接受):JS UI 交互、WebCodecs 编码、ZXing 扫码 — 设备-only 验证。
 
 ## 项目结构
 
@@ -110,7 +123,11 @@ adb shell am broadcast -a com.roam.app.AUTO --es cmd stop
 adb shell am broadcast -a com.roam.app.AUTO --es cmd qr-apt
 ```
 
-支持的 cmd:`apartment / guitar / cube / spz / skull / biker / record / stop / list / pick / qr-apt / qr-guitar / qr-cube`
+支持的 cmd:
+- 场景:`apartment / guitar / cube / spz / skull / biker`
+- 录屏 / 截屏 / 扫码:`record / stop / list / snap / scan / pick`
+- 二维码:`qr-apt / qr-guitar / qr-cube`
+- 沉浸 / 复位:`immersive / reset-view`
 
 ## 已知限制 / M2+ TODO
 

@@ -120,6 +120,15 @@
       font-size: 11px; font-family: ui-monospace, monospace;
       color: #67E8F9;
     }
+    /* canvas 右下场景 chip(随 currentSceneName 切换)*/
+    #pc-scene-chip {
+      position: absolute; bottom: 8px; right: 8px;
+      background: rgba(139,92,246,0.25); backdrop-filter: blur(8px);
+      padding: 4px 10px; border-radius: 999px;
+      font-size: 11px; color: #DDD6FE;
+      border: 1px solid rgba(139,92,246,0.40);
+      pointer-events: none;
+    }
 
     .env-info {
       font-size: 11px;
@@ -166,6 +175,7 @@
         <canvas id="pc-canvas"></canvas>
         <div id="pc-status">点上方按钮启动</div>
         <div id="pc-fps" style="display:none">FPS: --</div>
+        <div id="pc-scene-chip" style="display:none">—</div>
         <button id="pc-fs-btn" title="沉浸模式 / 双击 canvas 复位视角">⛶</button>
       </div>
     </div>
@@ -375,8 +385,13 @@
     let pcApp = null;
     // 录屏 / 截屏文件名里嵌的场景标识(简短英文)
     let currentSceneTag = 'cube';
-    function setCurrentScene(tag) {
+    function setCurrentScene(tag, displayName) {
       currentSceneTag = (tag || 'scene').replace(/[^a-zA-Z0-9_-]/g, '-').toLowerCase().slice(0, 24) || 'scene';
+      const chip = document.getElementById('pc-scene-chip');
+      if (chip) {
+        chip.textContent = displayName || tag || 'scene';
+        chip.style.display = 'block';
+      }
     }
     function startPlayCanvasScene() {
       const canvas = document.getElementById('pc-canvas');
@@ -388,7 +403,7 @@
         try { pcApp.destroy(); } catch (e) { console.warn('[Roam] old pcApp destroy:', e); }
         pcApp = null;
       }
-      setCurrentScene('cube');
+      setCurrentScene('cube', '🎲 立方体');
       status.style.display = 'none';
       fpsEl.style.display = 'block';
       badge.textContent = '✓ 🎲 立方体';
@@ -455,7 +470,7 @@
       }
       // 从 url 推 scene tag(scenes/apartment.sog → apartment;blob: → user-file)
       const m = url.match(/scenes\/([\w-]+)/);
-      setCurrentScene(m ? m[1] : (url.startsWith('blob:') ? 'user-file' : 'scene'));
+      setCurrentScene(m ? m[1] : (url.startsWith('blob:') ? 'user-file' : 'scene'), sceneName);
 
       try {
         pcApp = new pc.Application(canvas, { graphicsDeviceOptions: { preserveDrawingBuffer: true } });
@@ -580,7 +595,7 @@
       badge.textContent = 'SPZ 解码中…';
       badge.className = 'status status-pending';
       setLoadingStatus('加载 ' + sceneName + '…(WASM 解码 1-3s)');
-      setCurrentScene(sceneTag || 'spz');
+      setCurrentScene(sceneTag || 'spz', sceneName);
 
       if (pcApp) {
         try { pcApp.destroy(); } catch (e) { console.warn('[Roam] old pcApp destroy:', e); }

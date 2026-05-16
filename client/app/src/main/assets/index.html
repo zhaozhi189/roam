@@ -120,10 +120,13 @@
     <div class="card">
       <h2>② H9a · 本地 PlayCanvas 场景 <span class="status status-pending" id="pc-badge">vendor 加载中…</span></h2>
       <div class="meta">三选一启动场景到下方 canvas;④ 录屏录的就是这个 canvas。3DGS demo 文件 vendor 在 assets/scenes/(完全离线)</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
         <button id="pc-start" disabled style="font-size:11px;padding:9px 8px;">🎲 立方体</button>
-        <button id="pc-start-apt" disabled style="font-size:11px;padding:9px 8px;">🏠 公寓(8MB)</button>
-        <button id="pc-start-guitar" disabled style="font-size:11px;padding:9px 8px;">🎸 吉他(1.5MB)</button>
+        <button id="pc-start-apt" disabled style="font-size:11px;padding:9px 8px;">🏠 公寓 SOG (8MB)</button>
+        <button id="pc-start-guitar" disabled style="font-size:11px;padding:9px 8px;">🎸 吉他 PLY (1.5MB)</button>
+        <button id="pc-start-spz" disabled style="font-size:11px;padding:9px 8px;">🦎 蜥蜴 SPZ (17MB)</button>
+        <button id="pc-start-skull" disabled style="font-size:11px;padding:9px 8px;">💀 骷髅 SOG (5MB)</button>
+        <button id="pc-start-biker" disabled style="font-size:11px;padding:9px 8px;">🏍 摩托手 PLY (2.4MB)</button>
       </div>
       <div id="pc-canvas-wrap">
         <canvas id="pc-canvas"></canvas>
@@ -174,6 +177,13 @@
         ③ 想在微信里直接点链接 → 需 GitHub Pages https redirect(部署见 doc)
       </div>
       <button id="qr-self-test" style="margin-top:8px;background:rgba(255,255,255,0.08);box-shadow:none;border:1px solid rgba(255,255,255,0.12);font-size:11px;">🔗 自测当前 deep link(本机跳 Roam)</button>
+    </div>
+
+    <!-- Test 7: 截屏(canvas → PNG)— 跟录屏并列 -->
+    <div class="card">
+      <h2>⑦ · 截当前画面(PNG) <span class="status status-pending" id="snap-badge">待启动场景</span></h2>
+      <div class="meta">必须先点 ② 启动场景。canvas.toDataURL → PNG → internal storage。PNG 比视频小 100 倍,微信发图秒到</div>
+      <button id="snap-btn" disabled>📸 截屏</button>
     </div>
 
     <!-- Test 6: B 路径 Roam 内置扫码 -->
@@ -266,10 +276,37 @@
       document.getElementById('pc-start-apt').addEventListener('click', () => startGSplatScene('scenes/apartment.sog', '🏠 公寓'));
       document.getElementById('pc-start-guitar').disabled = false;
       document.getElementById('pc-start-guitar').addEventListener('click', () => startGSplatScene('scenes/guitar.compressed.ply', '🎸 吉他'));
+      const spzBtn = document.getElementById('pc-start-spz');
+      if (spzBtn) {
+        spzBtn.disabled = false;
+        spzBtn.addEventListener('click', async () => {
+          spzBtn.disabled = true;
+          try {
+            const resp = await fetch('scenes/hornedlizard.spz');
+            if (!resp.ok) throw new Error('HTTP ' + resp.status);
+            const buf = await resp.arrayBuffer();
+            await startSpzScene(buf, '🦎 蜥蜴');
+          } catch (e) {
+            console.error('[Roam] vendor SPZ 加载失败:', e);
+          } finally {
+            spzBtn.disabled = false;
+          }
+        });
+      }
+      const skullBtn = document.getElementById('pc-start-skull');
+      if (skullBtn) {
+        skullBtn.disabled = false;
+        skullBtn.addEventListener('click', () => startGSplatScene('scenes/skull.sog', '💀 骷髅'));
+      }
+      const bikerBtn = document.getElementById('pc-start-biker');
+      if (bikerBtn) {
+        bikerBtn.disabled = false;
+        bikerBtn.addEventListener('click', () => startGSplatScene('scenes/biker.compressed.ply', '🏍 摩托手'));
+      }
       console.log('[Roam] PlayCanvas loaded:', pc.version);
       // URL hash 自动测试:启动时 query string ?auto=xxx,运行中 RoamBridge.runAuto('xxx')
       function runAuto(cmd) {
-        const map = { apartment: 'pc-start-apt', guitar: 'pc-start-guitar', cube: 'pc-start',
+        const map = { apartment: 'pc-start-apt', guitar: 'pc-start-guitar', cube: 'pc-start', spz: 'pc-start-spz', skull: 'pc-start-skull', biker: 'pc-start-biker',
                       record: 'rec-start-btn', stop: 'rec-stop-btn', list: 'rec-list-btn',
                       pick: 'spz-pick-btn',
                       'qr-apt': 'qr-apt', 'qr-guitar': 'qr-guitar', 'qr-cube': 'qr-cube' };
@@ -316,7 +353,7 @@
       badge.textContent = '✓ 🎲 立方体';
       badge.className = 'status status-ready';
 
-      pcApp = new pc.Application(canvas, {});
+      pcApp = new pc.Application(canvas, { graphicsDeviceOptions: { preserveDrawingBuffer: true } });
       pcApp.setCanvasFillMode(pc.FILLMODE_FILL_WINDOW);
       pcApp.setCanvasResolution(pc.RESOLUTION_AUTO);
 
@@ -377,7 +414,7 @@
       }
 
       try {
-        pcApp = new pc.Application(canvas, {});
+        pcApp = new pc.Application(canvas, { graphicsDeviceOptions: { preserveDrawingBuffer: true } });
         pcApp.setCanvasFillMode(pc.FILLMODE_FILL_WINDOW);
         pcApp.setCanvasResolution(pc.RESOLUTION_AUTO);
 
@@ -493,7 +530,7 @@
       }
 
       try {
-        pcApp = new pc.Application(canvas, {});
+        pcApp = new pc.Application(canvas, { graphicsDeviceOptions: { preserveDrawingBuffer: true } });
         pcApp.setCanvasFillMode(pc.FILLMODE_FILL_WINDOW);
         pcApp.setCanvasResolution(pc.RESOLUTION_AUTO);
         const camera = new pc.Entity('camera');
@@ -756,10 +793,17 @@
     }
 
     function onPlayCanvasReady() {
-      if (!hasBridge || !wcSupported) return;
-      recStartBtn.disabled = false;
-      recBadge.textContent = '✓ 可录 MP4';
-      recBadge.className = 'status status-ready';
+      // 录屏 / 截屏 都需要 canvas 已有内容
+      if (hasBridge && wcSupported) {
+        recStartBtn.disabled = false;
+        recBadge.textContent = '✓ 可录 MP4';
+        recBadge.className = 'status status-ready';
+      }
+      if (hasBridge) {
+        const sb = document.getElementById('snap-btn');
+        const sbg = document.getElementById('snap-badge');
+        if (sb) { sb.disabled = false; sbg.textContent = '✓ 可截屏'; sbg.className = 'status status-ready'; }
+      }
     }
 
     recStartBtn.addEventListener('click', startWebCodecsRecording);
@@ -1054,6 +1098,34 @@
     document.getElementById('qr-self-test').addEventListener('click', () => {
       if (window.RoamBridge && window.RoamBridge.openDeepLink) {
         window.RoamBridge.openDeepLink(lastQrScene);
+      }
+    });
+
+    // ⑦ 截屏(canvas → PNG)
+    document.getElementById('snap-btn').addEventListener('click', () => {
+      const canvas = document.getElementById('pc-canvas');
+      const snapBadge = document.getElementById('snap-badge');
+      if (!pcApp || !canvas) { alert('请先点 ② 启动场景'); return; }
+      try {
+        // toDataURL 在 WebGL canvas 上需要 preserveDrawingBuffer 才能拿到内容,
+        // 否则可能返回纯黑或空白(PlayCanvas 默认不开)
+        // 兜底:用 captureStream + ImageBitmap 拿,但更慢。先试 toDataURL
+        const dataUrl = canvas.toDataURL('image/png');
+        const base64 = dataUrl.split(',', 2)[1];
+        if (!base64) throw new Error('toDataURL 返回空(WebGL preserveDrawingBuffer?)');
+        const ts = new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14);
+        const filename = `roam-${ts}.png`;
+        const path = window.RoamBridge.saveVideoBase64(filename, base64);
+        const sizeKB = Math.round(base64.length * 0.75 / 1024);
+        snapBadge.textContent = `✓ ${sizeKB}KB`;
+        snapBadge.className = 'status status-ready';
+        if (window.RoamBridge.toast) window.RoamBridge.toast('截屏 → ' + filename);
+        console.log('[Roam] snap saved:', path);
+        setTimeout(refreshRecList, 200);
+      } catch (e) {
+        console.error('[Roam] snap failed:', e);
+        snapBadge.textContent = '✗ ' + e.message;
+        snapBadge.className = 'status status-error';
       }
     });
 

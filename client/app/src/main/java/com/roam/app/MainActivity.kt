@@ -218,9 +218,11 @@ fun RoamWebView(
                     && intent.data?.scheme == "roam"
                     && intent.data?.host == "scene"
                 ) intent.data?.lastPathSegment else null
-                val auto = deepLinkScene ?: intent?.getStringExtra("auto")
+                // 默认场景:没有 deep link / extras 时,默认加载公寓(开屏立刻看到 3D,wow factor)
+                // 想要纯主页可以 --es auto none(JS 会忽略 'none')
+                val auto = deepLinkScene ?: intent?.getStringExtra("auto") ?: "apartment"
                 val base = "https://appassets.androidplatform.net/assets/index.html"
-                val url = if (auto != null) "$base?auto=$auto" else base
+                val url = if (auto != "none") "$base?auto=$auto" else base
                 Log.d("RoamWebView", "loadUrl: $url (deepLink=$deepLinkScene, auto=$auto)")
                 loadUrl(url)
             }

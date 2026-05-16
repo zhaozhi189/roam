@@ -49,8 +49,16 @@ object ShareHelper {
             return false
         }
 
+        // 按后缀决定 mime(微信对 image/png 和 video/mp4 都原生支持)
+        val mime = when {
+            filePath.endsWith(".mp4") -> "video/mp4"
+            filePath.endsWith(".webm") -> "video/webm"
+            filePath.endsWith(".png") -> "image/png"
+            filePath.endsWith(".jpg") || filePath.endsWith(".jpeg") -> "image/jpeg"
+            else -> "*/*"
+        }
         val sendIntent = Intent(Intent.ACTION_SEND).apply {
-            type = "video/mp4"
+            type = mime
             putExtra(Intent.EXTRA_STREAM, uri)
             // 关键:分享给的 App(微信等)需要读权限
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)

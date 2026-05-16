@@ -70,13 +70,13 @@ class RoamBridge(
         }
     }
 
-    /** 列出本地 recordings/ 目录的视频文件(mp4 + webm)— JS 端做视频列表用 */
+    /** 列出本地 recordings/ 目录的媒体文件(mp4 + webm + png 截屏)— JS 端做媒体列表用 */
     @JavascriptInterface
     fun listRecordings(): String {
         val dir = File(activity.filesDir, "recordings")
         if (!dir.exists()) return "[]"
         val items = dir.listFiles { f ->
-                f.isFile && (f.name.endsWith(".mp4") || f.name.endsWith(".webm"))
+                f.isFile && (f.name.endsWith(".mp4") || f.name.endsWith(".webm") || f.name.endsWith(".png"))
             }
             ?.sortedByDescending { it.lastModified() }
             ?.map { f ->
@@ -161,7 +161,12 @@ class RoamBridge(
                 }
                 val authority = "${activity.packageName}.fileprovider"
                 val uri = androidx.core.content.FileProvider.getUriForFile(activity, authority, file)
-                val mime = if (filePath.endsWith(".mp4")) "video/mp4" else "video/webm"
+                val mime = when {
+                    filePath.endsWith(".mp4") -> "video/mp4"
+                    filePath.endsWith(".webm") -> "video/webm"
+                    filePath.endsWith(".png") -> "image/png"
+                    else -> "*/*"
+                }
                 val intent = Intent(Intent.ACTION_VIEW).apply {
                     setDataAndType(uri, mime)
                     addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)

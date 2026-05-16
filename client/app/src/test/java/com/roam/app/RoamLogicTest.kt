@@ -238,4 +238,64 @@ class RoamLogicTest {
         assertNull(RoamLogic.extractSceneTagFromFilename("random.mp4"))
         assertNull(RoamLogic.extractSceneTagFromFilename("roam-apt-shortts.mp4"))
     }
+
+    // ===== escapeJsonString + buildMediaItemJson =====
+
+    @Test
+    fun escapeJson_plain_unchanged() {
+        assertEquals("abc 123", RoamLogic.escapeJsonString("abc 123"))
+    }
+
+    @Test
+    fun escapeJson_doubleQuote() {
+        assertEquals("""he said \"hi\"""", RoamLogic.escapeJsonString("""he said "hi""""))
+    }
+
+    @Test
+    fun escapeJson_backslash() {
+        assertEquals("""a\\b""", RoamLogic.escapeJsonString("""a\b"""))
+    }
+
+    @Test
+    fun escapeJson_controlChars() {
+        assertEquals("""line1\nline2\ttab\rret""",
+            RoamLogic.escapeJsonString("line1\nline2\ttab\rret"))
+    }
+
+    @Test
+    fun escapeJson_lowControlChar_unicodeEscaped() {
+        // 0x01 控制字符应被 \\uXXXX escape
+        val input = "a" + 0x01.toChar() + "b"
+        assertEquals("a\\u0001b", RoamLogic.escapeJsonString(input))
+    }
+
+    @Test
+    fun mediaItem_jsonValidWithSpecialPath() {
+        // 防恶意/极端文件名破坏 JSON(SAF 选用户文件名可能有引号 / emoji / 控制符)
+        val json = RoamLogic.buildMediaItemJson(
+            absolutePath = """/tmp/with "quote" and \backslash.mp4""",
+            name = "evil\"name.mp4",
+            sizeBytes = 1234,
+            mtimeMs = 9999999L
+        )
+        // 必须能被 JSONObject 解析(反向证明 escape 正确)
+        val o = org.json.JSONObject(json)
+        assertEquals("""/tmp/with "quote" and \backslash.mp4""", o.getString("path"))
+        assertEquals("evil\"name.mp4", o.getString("name"))
+        assertEquals(1234L, o.getLong("size"))
+        assertEquals(9999999L, o.getLong("mtime"))
+    }
+
+    @Test
+    fun mediaItem_normalFilename() {
+        val json = RoamLogic.buildMediaItemJson(
+            "/data/data/com.roam.app/files/recordings/roam-apartment-20260516.mp4",
+            "roam-apartment-20260516.mp4",
+            2_400_000L,
+            1_700_000_000_000L
+        )
+        val o = org.json.JSONObject(json)
+        assertEquals("roam-apartment-20260516.mp4", o.getString("name"))
+        assertEquals(2_400_000L, o.getLong("size"))
+    }
 }

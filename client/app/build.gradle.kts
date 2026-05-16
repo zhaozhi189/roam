@@ -49,6 +49,7 @@ dependencies {
     implementation(libs.androidx.webkit)
     implementation(libs.zxing.android.embedded)
     testImplementation(libs.junit)
+    testImplementation("org.json:json:20240303")    // JSONObject 单元测试可用(org.json 在 JVM 跑)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))

@@ -85,4 +85,29 @@ object RoamLogic {
         val m = Regex("^roam-([a-zA-Z0-9_-]+)-\\d{8,14}\\.(mp4|webm|png)$").matchEntire(filename)
         return m?.groupValues?.get(1)
     }
+
+    /**
+     * 把字符串 escape 成 JSON 字符串内合法的内容(不带外层引号)
+     * 必须 escape:" \ 控制字符
+     */
+    fun escapeJsonString(s: String): String {
+        val sb = StringBuilder(s.length + 4)
+        for (c in s) {
+            when (c) {
+                '\\' -> sb.append("\\\\")
+                '"' -> sb.append("\\\"")
+                '\n' -> sb.append("\\n")
+                '\r' -> sb.append("\\r")
+                '\t' -> sb.append("\\t")
+                '\b' -> sb.append("\\b")
+                '\u000C' -> sb.append("\\f")
+                else -> if (c.code < 0x20) sb.append("\\u%04x".format(c.code)) else sb.append(c)
+            }
+        }
+        return sb.toString()
+    }
+
+    /** 构造 RoamBridge.listRecordings 单项 JSON(escape 防恶意文件名破坏 JSON) */
+    fun buildMediaItemJson(absolutePath: String, name: String, sizeBytes: Long, mtimeMs: Long): String =
+        """{"path":"${escapeJsonString(absolutePath)}","name":"${escapeJsonString(name)}","size":$sizeBytes,"mtime":$mtimeMs}"""
 }

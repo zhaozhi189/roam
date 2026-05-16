@@ -67,6 +67,38 @@ class MainActivity : ComponentActivity() {
      * H7 MediaProjection 权限请求结果。允许后启动 ScreenRecorderService 开始录制。
      * 用户拒绝时 resultCode = RESULT_CANCELED,不启动 service。
      */
+    /** B 路径:Roam 内置扫码(ZXing)— 扫到 roam:// 直接调 openDeepLink 跳场景 */
+    private val qrScanLauncher = registerForActivityResult(
+        com.journeyapps.barcodescanner.ScanContract()
+    ) { result ->
+        val raw = result.contents
+        Log.d(TAG, "扫码结果: $raw")
+        if (raw == null) {
+            // 用户取消
+            webView?.post {
+                webView?.evaluateJavascript(
+                    "window.onScanResult && window.onScanResult(null)", null
+                )
+            }
+            return@registerForActivityResult
+        }
+        webView?.post {
+            webView?.evaluateJavascript(
+                "window.onScanResult && window.onScanResult(${JSONObject.quote(raw)})", null
+            )
+        }
+        // 扫到 roam:// scheme 直接跳
+        if (raw.startsWith("roam://")) {
+            try {
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(raw))
+                    .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                startActivity(intent)
+            } catch (e: Exception) {
+                Log.e(TAG, "扫码后启动 deep link 失败", e)
+            }
+        }
+    }
+
     private val mediaProjectionLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
@@ -110,7 +142,7 @@ class MainActivity : ComponentActivity() {
                     onWebViewCreated = { wv ->
                         webView = wv
                         wv.addJavascriptInterface(
-                            RoamBridge(this@MainActivity, spzPickerLauncher, mediaProjectionLauncher),
+                            RoamBridge(this@MainActivity, spzPickerLauncher, mediaProjectionLauncher, qrScanLauncher),
                             RoamBridge.JS_INTERFACE_NAME
                         )
                         Log.d(TAG, "WebView created and RoamBridge injected")

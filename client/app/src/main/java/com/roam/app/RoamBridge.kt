@@ -22,7 +22,8 @@ import java.io.FileOutputStream
 class RoamBridge(
     private val activity: Activity,
     private val spzPickerLauncher: ActivityResultLauncher<Array<String>>,
-    private val mediaProjectionLauncher: ActivityResultLauncher<Intent>
+    private val mediaProjectionLauncher: ActivityResultLauncher<Intent>,
+    private val qrScanLauncher: ActivityResultLauncher<com.journeyapps.barcodescanner.ScanOptions>
 ) {
     /** SAF 选 .spz 文件 */
     @JavascriptInterface
@@ -171,6 +172,47 @@ class RoamBridge(
                 Log.e(TAG, "openVideoExternal 失败", e)
                 Toast.makeText(activity, "打开失败: ${e.message}", Toast.LENGTH_SHORT).show()
             }
+        }
+    }
+
+    /**
+     * 测试 deep link:直接调起系统 Intent.ACTION_VIEW 打开 roam://scene/<name>
+     * 用于 zhi 验证 deep link 是否真能调起 Roam(不依赖扫码或微信)。
+     * 也可用于扫码 App 内部 scan 完后直接跳。
+     */
+    @JavascriptInterface
+    fun openDeepLink(sceneOrUrl: String) {
+        Log.d(TAG, "openDeepLink: $sceneOrUrl")
+        activity.runOnUiThread {
+            try {
+                val uri = if (sceneOrUrl.contains("://")) android.net.Uri.parse(sceneOrUrl)
+                          else android.net.Uri.parse("roam://scene/$sceneOrUrl")
+                val intent = Intent(Intent.ACTION_VIEW, uri)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                activity.startActivity(intent)
+            } catch (e: Exception) {
+                Log.e(TAG, "openDeepLink 失败", e)
+                Toast.makeText(activity, "deep link 失败: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    /**
+     * B 路径:Roam 内置扫码(ZXing 调相机)
+     * 扫到 roam:// scheme → MainActivity 自动 startActivity 跳同 App
+     * 扫到其他 URL → 回调 JS window.onScanResult(url) 显示
+     */
+    @JavascriptInterface
+    fun scanQrCode() {
+        Log.d(TAG, "scanQrCode() 被 JS 调用")
+        activity.runOnUiThread {
+            val opts = com.journeyapps.barcodescanner.ScanOptions()
+                .setDesiredBarcodeFormats(com.journeyapps.barcodescanner.ScanOptions.QR_CODE)
+                .setPrompt("对准二维码")
+                .setBeepEnabled(true)
+                .setOrientationLocked(false)
+                .setCameraId(0)  // back camera
+            qrScanLauncher.launch(opts)
         }
     }
 

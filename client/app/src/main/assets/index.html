@@ -166,6 +166,22 @@
         <div id="qr-canvas"></div>
         <div id="qr-text" style="margin-top:8px;font-size:11px;font-family:ui-monospace,monospace;color:#1e1b4b;word-break:break-all;"></div>
       </div>
+      <div style="margin-top:10px;padding:10px 12px;background:rgba(245,158,11,0.10);border:1px solid rgba(245,158,11,0.25);border-radius:8px;font-size:11px;line-height:1.6;color:#FCD34D;">
+        ⚠️ <b>微信扫码会报 ERR_UNKNOWN_URL_SCHEME</b>(微信内置 WebView 屏蔽自定义 scheme,安全策略)<br/>
+        ✅ <b>替代方案</b>:<br/>
+        ① 用系统相机 / 扫一扫(不是微信)扫此码 → 提示用 Roam 打开<br/>
+        ② 用 ⑥ 的 Roam 内置扫码(下面卡片)— 自测最方便<br/>
+        ③ 想在微信里直接点链接 → 需 GitHub Pages https redirect(部署见 doc)
+      </div>
+      <button id="qr-self-test" style="margin-top:8px;background:rgba(255,255,255,0.08);box-shadow:none;border:1px solid rgba(255,255,255,0.12);font-size:11px;">🔗 自测当前 deep link(本机跳 Roam)</button>
+    </div>
+
+    <!-- Test 6: B 路径 Roam 内置扫码 -->
+    <div class="card">
+      <h2>⑥ B · Roam 内扫码进场景 <span class="status status-ready" id="scan-badge">就绪</span></h2>
+      <div class="meta">用相机扫 ⑤ 生成的二维码,扫到 <code>roam://scene/xxx</code> 直接跳同 App 进场景。绕开微信扫码限制最快路径。需要 CAMERA 权限,首次使用会授权弹窗。</div>
+      <button id="scan-btn">📷 启动扫码</button>
+      <div id="scan-result" style="display:none;margin-top:10px;padding:10px 12px;font-family:ui-monospace,monospace;font-size:11px;color:rgba(255,255,255,0.7);word-break:break-all;background:rgba(6,182,212,0.08);border:1px solid rgba(6,182,212,0.20);border-radius:8px;"></div>
     </div>
 
     <!-- WebView 环境信息 -->
@@ -1030,9 +1046,40 @@
         document.getElementById('qr-badge').className = 'status status-error';
       }
     }
-    document.getElementById('qr-apt').addEventListener('click', () => showQR('apartment'));
-    document.getElementById('qr-guitar').addEventListener('click', () => showQR('guitar'));
-    document.getElementById('qr-cube').addEventListener('click', () => showQR('cube'));
+    let lastQrScene = 'apartment';
+    function showQRWithMemo(scene) { lastQrScene = scene; showQR(scene); }
+    document.getElementById('qr-apt').addEventListener('click', () => showQRWithMemo('apartment'));
+    document.getElementById('qr-guitar').addEventListener('click', () => showQRWithMemo('guitar'));
+    document.getElementById('qr-cube').addEventListener('click', () => showQRWithMemo('cube'));
+    document.getElementById('qr-self-test').addEventListener('click', () => {
+      if (window.RoamBridge && window.RoamBridge.openDeepLink) {
+        window.RoamBridge.openDeepLink(lastQrScene);
+      }
+    });
+
+    // ⑥ Roam 内扫码
+    const scanBtn = document.getElementById('scan-btn');
+    const scanResult = document.getElementById('scan-result');
+    const scanBadge = document.getElementById('scan-badge');
+    if (!hasBridge) { scanBtn.disabled = true; scanBtn.textContent = '需 Android App'; }
+    scanBtn.addEventListener('click', () => {
+      if (window.RoamBridge && window.RoamBridge.scanQrCode) {
+        scanBadge.textContent = '相机启动中…';
+        window.RoamBridge.scanQrCode();
+      }
+    });
+    window.onScanResult = function(url) {
+      scanResult.style.display = 'block';
+      if (url == null) {
+        scanResult.textContent = '⚠️ 用户取消';
+        scanBadge.textContent = '已取消';
+        return;
+      }
+      const isRoam = url.startsWith('roam://');
+      scanResult.textContent = (isRoam ? '✅ Roam scheme — Native 已自动跳场景\n' : '⚠️ 非 Roam scheme:\n') + url;
+      scanBadge.textContent = isRoam ? '✓ 跳场景' : '✗ 非 Roam';
+      scanBadge.className = isRoam ? 'status status-ready' : 'status status-pending';
+    };
 
     // 启动:先收集环境
     gatherEnv();

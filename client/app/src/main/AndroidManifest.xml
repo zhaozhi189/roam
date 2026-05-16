@@ -32,6 +32,13 @@
 
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <!-- Deep link:roam://scene/apartment 接收方扫码进同场景 -->
+            <intent-filter android:autoVerify="false">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="roam" />
+            </intent-filter>
         </activity>
 
         <!-- H7 录屏 ForegroundService -->

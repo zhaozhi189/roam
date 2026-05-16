@@ -177,12 +177,19 @@ fun RoamWebView(
                     }
                 }
                 onWebViewCreated(this)
-                // 支持自动化测试 deep extra:adb shell am start -n com.roam.app/.MainActivity --es auto apartment
-                // 走 query string 比 hash 更稳(WebViewAssetLoader 对 hash 偶有 normalize)
-                val auto = (context as? Activity)?.intent?.getStringExtra("auto")
+                // 入口 URL 优先级:
+                //   1) Deep link roam://scene/<name> → 接收方扫码场景(C 路径)
+                //   2) extras --es auto <cmd>        → adb 自动化测试(B 路径)
+                //   3) 默认主页
+                val intent = (context as? Activity)?.intent
+                val deepLinkScene = if (intent?.action == Intent.ACTION_VIEW
+                    && intent.data?.scheme == "roam"
+                    && intent.data?.host == "scene"
+                ) intent.data?.lastPathSegment else null
+                val auto = deepLinkScene ?: intent?.getStringExtra("auto")
                 val base = "https://appassets.androidplatform.net/assets/index.html"
                 val url = if (auto != null) "$base?auto=$auto" else base
-                Log.d("RoamWebView", "loadUrl: $url (auto=$auto)")
+                Log.d("RoamWebView", "loadUrl: $url (deepLink=$deepLinkScene, auto=$auto)")
                 loadUrl(url)
             }
         }

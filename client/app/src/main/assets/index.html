@@ -153,6 +153,21 @@
       <div id="rec-list" style="margin-top:10px;font-size:11px;font-family:ui-monospace,monospace;color:rgba(255,255,255,0.7);"></div>
     </div>
 
+    <!-- Test 5: C deep link + 二维码生成(接收方扫码进 Roam 自漫游)-->
+    <div class="card">
+      <h2>⑤ C · 分享场景给朋友(扫码自漫游) <span class="status status-ready" id="qr-badge">就绪</span></h2>
+      <div class="meta">生成 <code>roam://scene/xxx</code> deep link 二维码,朋友用相机/扫一扫 → 提示打开 Roam → 直接进同场景。需要朋友也装了 Roam。</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;">
+        <button id="qr-apt" style="font-size:11px;padding:9px 8px;">🏠 公寓码</button>
+        <button id="qr-guitar" style="font-size:11px;padding:9px 8px;">🎸 吉他码</button>
+        <button id="qr-cube" style="font-size:11px;padding:9px 8px;">🎲 立方体码</button>
+      </div>
+      <div id="qr-display" style="display:none;margin-top:12px;text-align:center;padding:12px;background:rgba(255,255,255,0.95);border-radius:10px;">
+        <div id="qr-canvas"></div>
+        <div id="qr-text" style="margin-top:8px;font-size:11px;font-family:ui-monospace,monospace;color:#1e1b4b;word-break:break-all;"></div>
+      </div>
+    </div>
+
     <!-- WebView 环境信息 -->
     <div class="card">
       <h2>WebView 环境</h2>
@@ -165,6 +180,11 @@
   <script src="vendor/playcanvas.min.js"></script>
   <!-- mp4-muxer 5.2.2(31KB IIFE,挂 window.Mp4Muxer)— H7 用 WebCodecs+mp4-muxer 录 H.264 MP4 -->
   <script src="vendor/mp4-muxer.min.js"></script>
+  <!-- qrcode-generator 1.4.4(20KB UMD,挂 window.qrcode)— C 路径生成 roam:// deep link 二维码 -->
+  <script src="vendor/qrcode.min.js"></script>
+  <!-- @spz-loader/playcanvas 0.3.1(242KB UMD,挂 window.SpzWasmPlayCanvas,内嵌 WASM 解码 SPZ)
+       依赖 window.pc(playcanvas.min.js 必须先加载)。M2 真渲染 Scaniverse 原生 .spz -->
+  <script src="vendor/spz-loader-playcanvas.umd.cjs"></script>
 
   <script>
     // 同步检查 PlayCanvas 是否成功暴露 pc 全局(UMD 包装会挂到 window.pc)
@@ -373,16 +393,34 @@
         }
         console.log('[Roam] AABB center=', center.toString(), 'radius=', radius);
 
-        // 自动轨道相机(漫游感)
-        let angle = 0;
+        // Orbit camera 状态(球坐标)
+        const cam = {
+          yaw: 0,        // 水平角(自动转用,弧度)
+          pitch: -0.2,   // 俯仰角(轻微俯视),范围 [-π/2+ε, π/2-ε]
+          radius: radius,
+          autoRotate: true,           // 默认自动转(出漫游感)
+          lastInteractMs: 0,
+          AUTO_RESUME_MS: 3000,       // 3s 无操作恢复自动转
+          AUTO_SPEED: 0.25,           // 自动转速度(rad/s)
+        };
+        // 触摸控制:1 指拖 = yaw/pitch,2 指捏 = zoom
+        attachOrbitTouch(canvas, cam, radius);
+
         let frames = 0;
         let lastT = performance.now();
         pcApp.on('update', (dt) => {
-          angle += dt * 0.25;
+          // 用户长时间没操作 → 自动转
+          if (cam.autoRotate || (performance.now() - cam.lastInteractMs > cam.AUTO_RESUME_MS)) {
+            cam.yaw += dt * cam.AUTO_SPEED;
+            cam.autoRotate = true;
+          }
+          // 球坐标 → 笛卡尔
+          const cp = Math.cos(cam.pitch), sp = Math.sin(cam.pitch);
+          const cy = Math.cos(cam.yaw), sy = Math.sin(cam.yaw);
           camera.setPosition(
-            center.x + Math.cos(angle) * radius,
-            center.y + radius * 0.25,
-            center.z + Math.sin(angle) * radius
+            center.x + cam.radius * cp * cy,
+            center.y + cam.radius * sp + cam.radius * 0.15,
+            center.z + cam.radius * cp * sy
           );
           camera.lookAt(center);
           frames++;
@@ -413,6 +451,152 @@
         if (window.RoamBridge && window.RoamBridge.toast) window.RoamBridge.toast('Splat 错: ' + msg);
         if (window.RoamBridge && window.RoamBridge.log) window.RoamBridge.log('GSplatError', sceneName + ' | ' + msg + ' | ' + stack);
       }
+    }
+
+    // ====== D · 启动 SPZ 场景(@spz-loader/playcanvas UMD)======
+    async function startSpzScene(spzBuffer, sceneName) {
+      const canvas = document.getElementById('pc-canvas');
+      const status = document.getElementById('pc-status');
+      const fpsEl = document.getElementById('pc-fps');
+      const badge = document.getElementById('pc-badge');
+      status.style.display = 'flex';
+      status.style.cssText = ''; // reset 错误状态可能留下的红样式
+      status.textContent = '加载 ' + sceneName + '…(SPZ 解码)';
+      fpsEl.style.display = 'none';
+      badge.textContent = 'SPZ 解码中…';
+      badge.className = 'status status-pending';
+
+      if (pcApp) {
+        try { pcApp.destroy(); } catch (e) { console.warn('[Roam] old pcApp destroy:', e); }
+        pcApp = null;
+      }
+
+      try {
+        pcApp = new pc.Application(canvas, {});
+        pcApp.setCanvasFillMode(pc.FILLMODE_FILL_WINDOW);
+        pcApp.setCanvasResolution(pc.RESOLUTION_AUTO);
+        const camera = new pc.Entity('camera');
+        camera.addComponent('camera', { clearColor: new pc.Color(0.04, 0.06, 0.12) });
+        camera.setPosition(0, 0, 3);
+        pcApp.root.addChild(camera);
+        pcApp.start();
+
+        const t0 = performance.now();
+        const splatEntity = await window.SpzWasmPlayCanvas.createGSplatEntityFromSpzAsync(spzBuffer);
+        pcApp.root.addChild(splatEntity);
+        const loadMs = (performance.now() - t0).toFixed(0);
+        console.log('[Roam] SPZ loaded:', sceneName, 'in', loadMs, 'ms');
+
+        // 拿 AABB(SpzWasmPlayCanvas 创建的 entity 也带 gsplat component)
+        let center = new pc.Vec3(0, 0, 0);
+        let radius = 3;
+        const gsplatComp = splatEntity.gsplat;
+        const aabb = gsplatComp && (gsplatComp.aabb || (gsplatComp.instance && gsplatComp.instance.meshInstance && gsplatComp.instance.meshInstance.aabb));
+        if (aabb) {
+          center = aabb.center.clone();
+          radius = Math.max(aabb.halfExtents.length() * 1.8, 1.5);
+        }
+        console.log('[Roam] SPZ AABB center=', center.toString(), 'radius=', radius);
+
+        const cam = { yaw: 0, pitch: -0.2, radius, autoRotate: true, lastInteractMs: 0, AUTO_RESUME_MS: 3000, AUTO_SPEED: 0.25 };
+        attachOrbitTouch(canvas, cam, radius);
+
+        let frames = 0, lastT = performance.now();
+        pcApp.on('update', (dt) => {
+          if (cam.autoRotate || (performance.now() - cam.lastInteractMs > cam.AUTO_RESUME_MS)) {
+            cam.yaw += dt * cam.AUTO_SPEED;
+            cam.autoRotate = true;
+          }
+          const cp = Math.cos(cam.pitch), sp = Math.sin(cam.pitch);
+          const cy = Math.cos(cam.yaw), sy = Math.sin(cam.yaw);
+          camera.setPosition(
+            center.x + cam.radius * cp * cy,
+            center.y + cam.radius * sp + cam.radius * 0.15,
+            center.z + cam.radius * cp * sy
+          );
+          camera.lookAt(center);
+          frames++;
+          const now = performance.now();
+          if (now - lastT >= 1000) {
+            fpsEl.textContent = 'FPS: ' + frames + ' · ' + sceneName;
+            frames = 0; lastT = now;
+          }
+        });
+
+        status.style.display = 'none';
+        fpsEl.style.display = 'block';
+        badge.textContent = '✓ ' + sceneName + ' (' + loadMs + 'ms)';
+        badge.className = 'status status-ready';
+
+        if (typeof window.onPlayCanvasReady === 'function') window.onPlayCanvasReady();
+      } catch (err) {
+        const msg = (err && err.message) || String(err);
+        const stack = (err && err.stack) || '(无 stack)';
+        console.error('[Roam] startSpzScene 失败:', err);
+        status.style.display = 'flex';
+        status.style.cssText += ';color:#F87171;background:rgba(239,68,68,0.15);padding:12px;font-family:ui-monospace,monospace;font-size:10px;line-height:1.4;white-space:pre-wrap;text-align:left;align-items:flex-start;justify-content:flex-start;overflow:auto;';
+        status.textContent = '❌ SPZ ' + sceneName + '\nmsg: ' + msg + '\n\nstack:\n' + stack.split('\n').slice(0, 6).join('\n');
+        badge.textContent = '✗ SPZ';
+        badge.className = 'status status-error';
+        if (window.RoamBridge && window.RoamBridge.toast) window.RoamBridge.toast('SPZ 错: ' + msg);
+      }
+    }
+
+    // ====== Orbit camera 触摸控制(1 指拖 = yaw/pitch,2 指捏 = zoom)======
+    function attachOrbitTouch(canvas, cam, initialRadius) {
+      const PITCH_LIMIT = Math.PI / 2 - 0.1;
+      const RADIUS_MIN = Math.max(initialRadius * 0.3, 0.5);
+      const RADIUS_MAX = initialRadius * 4;
+      // 像素 → 弧度的灵敏度(横竖屏自适应)
+      const ROT_SENS = 0.005;
+      let touches = []; // [{id, x, y}]
+      let lastPinchDist = 0;
+
+      const getDist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+
+      function onStart(e) {
+        e.preventDefault();
+        cam.autoRotate = false;
+        cam.lastInteractMs = performance.now();
+        touches = Array.from(e.touches).map(t => ({ id: t.identifier, x: t.clientX, y: t.clientY }));
+        if (touches.length === 2) lastPinchDist = getDist(touches[0], touches[1]);
+      }
+      function onMove(e) {
+        e.preventDefault();
+        cam.lastInteractMs = performance.now();
+        const now = Array.from(e.touches).map(t => ({ id: t.identifier, x: t.clientX, y: t.clientY }));
+        if (now.length === 1 && touches.length === 1) {
+          // 单指拖动 → yaw / pitch
+          const dx = now[0].x - touches[0].x;
+          const dy = now[0].y - touches[0].y;
+          cam.yaw -= dx * ROT_SENS;
+          cam.pitch -= dy * ROT_SENS;
+          if (cam.pitch > PITCH_LIMIT) cam.pitch = PITCH_LIMIT;
+          if (cam.pitch < -PITCH_LIMIT) cam.pitch = -PITCH_LIMIT;
+        } else if (now.length === 2 && touches.length === 2) {
+          // 双指捏 → 缩放
+          const d = getDist(now[0], now[1]);
+          if (lastPinchDist > 0) {
+            const scale = lastPinchDist / d;  // 指向外滑 d 变大 → scale<1 → radius 减小(拉近)
+            cam.radius *= scale;
+            if (cam.radius < RADIUS_MIN) cam.radius = RADIUS_MIN;
+            if (cam.radius > RADIUS_MAX) cam.radius = RADIUS_MAX;
+          }
+          lastPinchDist = d;
+        }
+        touches = now;
+      }
+      function onEnd(e) {
+        e.preventDefault();
+        touches = Array.from(e.touches).map(t => ({ id: t.identifier, x: t.clientX, y: t.clientY }));
+        lastPinchDist = touches.length === 2 ? getDist(touches[0], touches[1]) : 0;
+        cam.lastInteractMs = performance.now();
+      }
+      // passive: false 才能 preventDefault(WebView 默认 passive 触摸)
+      canvas.addEventListener('touchstart', onStart, { passive: false });
+      canvas.addEventListener('touchmove', onMove, { passive: false });
+      canvas.addEventListener('touchend', onEnd, { passive: false });
+      canvas.addEventListener('touchcancel', onEnd, { passive: false });
     }
 
     // ====== H9b SPZ 选文件(JS Bridge → Kotlin SAF)======
@@ -479,12 +663,20 @@
           await startGSplatScene(blobUrl, '📂 ' + filename);
           spzResult.textContent += `\n✅ 渲染中(看 ② canvas)`;
         } else if (isSpz) {
+          // D · @spz-loader/playcanvas 真渲染(UMD vendor 在 window.SpzWasmPlayCanvas)
+          if (!window.SpzWasmPlayCanvas || !window.SpzWasmPlayCanvas.createGSplatEntityFromSpzAsync) {
+            spzResult.textContent =
+              `✓ SPZ ${sizeMB} MB · ${fetchMs}ms\n` +
+              `❌ @spz-loader 未加载(window.SpzWasmPlayCanvas 不存在)`;
+            return;
+          }
           spzResult.textContent =
-            `✓ fetch 成功 ${sizeMB} MB · ${fetchMs}ms\n` +
-            `格式: ✅ SPZ · Magic="${magic}"\n` +
-            `头 8 byte hex: ${hex}\n` +
-            `⏸ SPZ 真渲染留 M2(需 @spz-loader/playcanvas ESM 集成)`;
-          if (window.RoamBridge.toast) window.RoamBridge.toast(`SPZ 读取 ${sizeMB} MB`);
+            `✓ SPZ fetch ${sizeMB} MB · ${fetchMs}ms\n` +
+            `→ @spz-loader 解码 + 渲染…(首次 WASM 编译 1-2s)`;
+          if (window.RoamBridge.toast) window.RoamBridge.toast(`SPZ 解码 ${sizeMB} MB`);
+          const filename = uri.split('/').pop() || 'user.spz';
+          await startSpzScene(buf, '📂 ' + filename);
+          spzResult.textContent += `\n✅ 渲染中(看 ② canvas)`;
         } else {
           spzResult.textContent =
             `⚠️ 未知格式 · ${sizeMB} MB · ${fetchMs}ms\n` +
@@ -802,6 +994,40 @@
 
     // 启动时刷一次列表
     if (hasBridge) refreshRecList();
+
+    // ====== C · Deep link 二维码生成 ======
+    function showQR(sceneName) {
+      const url = 'roam://scene/' + sceneName;
+      try {
+        // qrcode-generator API: qrcode(typeNumber, errorCorrectionLevel)
+        // typeNumber=0 = 自动选合适大小;errorCorrection='M' = 中等容错
+        const qr = qrcode(0, 'M');
+        qr.addData(url);
+        qr.make();
+        // createImgTag(cellSize, margin) → 返回 <img> HTML
+        const imgHtml = qr.createImgTag(6, 12);
+        const wrap = document.getElementById('qr-canvas');
+        wrap.innerHTML = ''; // 这里是受信任的二维码 img tag,非用户内容
+        // 用 createElement 严谨重建,避免触发 innerHTML hook
+        const tmp = document.createElement('div');
+        tmp.innerHTML = imgHtml;
+        const img = tmp.querySelector('img');
+        if (img) wrap.appendChild(img);
+        document.getElementById('qr-text').textContent = url;
+        document.getElementById('qr-display').style.display = 'block';
+        document.getElementById('qr-badge').textContent = '✓ ' + sceneName;
+        if (window.RoamBridge && window.RoamBridge.toast) {
+          window.RoamBridge.toast('扫码 → ' + url);
+        }
+      } catch (e) {
+        console.error('[Roam] QR generation failed:', e);
+        document.getElementById('qr-badge').textContent = '✗ ' + e.message;
+        document.getElementById('qr-badge').className = 'status status-error';
+      }
+    }
+    document.getElementById('qr-apt').addEventListener('click', () => showQR('apartment'));
+    document.getElementById('qr-guitar').addEventListener('click', () => showQR('guitar'));
+    document.getElementById('qr-cube').addEventListener('click', () => showQR('cube'));
 
     // 启动:先收集环境
     gatherEnv();

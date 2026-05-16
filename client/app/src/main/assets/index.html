@@ -827,6 +827,14 @@
         const sizeMB = (buf.byteLength / 1024 / 1024).toFixed(2);
         const hex = Array.from(view).map(b => b.toString(16).padStart(2, '0')).join(' ');
 
+        // 大文件警告(>100MB 加载可能 5-10s,WASM 解码可能 OOM)
+        if (buf.byteLength > 100 * 1024 * 1024) {
+          if (!confirm(`文件 ${sizeMB} MB,加载/解码可能很慢(可能 OOM 闪退),继续吗?`)) {
+            spzResult.textContent = `⚠️ 用户取消(${sizeMB} MB 超大文件)`;
+            return;
+          }
+        }
+
         // PLY 或 SOG → 真渲染(blob URL 喂给 startGSplatScene,跳过再次 fetch)
         if (isPly || isSog) {
           const fmt = isPly ? '✅ PLY' : '✅ SOG';

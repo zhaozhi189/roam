@@ -36,7 +36,7 @@ adb shell am start -n com.roam.app/.MainActivity
 
 ```bash
 cd client
-./gradlew testDebugUnitTest        # JVM 直跑,无需设备(~3s,31 个测试)
+./gradlew testDebugUnitTest        # JVM 直跑,无需设备(~3s,46 个测试)
 ```
 
 测试覆盖 `RoamLogic` 内的纯逻辑:
@@ -48,6 +48,14 @@ cd client
 - 文件名 → 场景 tag 解析
 
 不测的(可接受):JS UI 交互、WebCodecs 编码、ZXing 扫码 — 设备-only 验证。
+
+## 端到端自动化(adb,需设备)
+
+```bash
+./scripts/e2e-test.sh [out-dir]     # 默认 /tmp/roam-e2e/
+```
+
+8 段:冷启动 / 切 6 场景 / 沉浸 / 二维码 / 截屏 / 录屏 / deep link / no-auto,每步截屏归档供回看。
 
 ## 项目结构
 

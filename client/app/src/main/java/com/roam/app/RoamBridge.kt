@@ -83,7 +83,8 @@ class RoamBridge(
             }
             ?.sortedByDescending { it.lastModified() }
             ?.map { f ->
-                """{"path":"${f.absolutePath}","name":"${f.name}","size":${f.length()},"mtime":${f.lastModified()}}"""
+                // 通过 RoamLogic 安全 escape — 用户 SAF 选的文件名可能含 " 或控制符,inline 拼接会破坏 JSON
+                RoamLogic.buildMediaItemJson(f.absolutePath, f.name, f.length(), f.lastModified())
             }
             ?: emptyList()
         return "[" + items.joinToString(",") + "]"

@@ -65,13 +65,29 @@
 
     /* PlayCanvas 内嵌测试区 */
     #pc-canvas-wrap {
-      width: 100%; height: 280px;
+      width: 100%; height: 320px;
       background: linear-gradient(135deg, #1a2440, #0a0f1e);
       border: 1px dashed rgba(139,92,246,0.30);
       border-radius: 12px;
       margin-top: 12px;
       position: relative;
       overflow: hidden;
+    }
+    /* 沉浸模式:canvas 占满整屏(零侵入,只加一个 class)*/
+    #pc-canvas-wrap.fullscreen {
+      position: fixed; inset: 0;
+      width: 100vw; height: 100dvh;
+      z-index: 9999;
+      border-radius: 0; border: none;
+      margin: 0;
+    }
+    #pc-fs-btn {
+      position: absolute; top: 8px; left: 8px;
+      background: rgba(0,0,0,0.5); backdrop-filter: blur(8px);
+      padding: 4px 10px; border-radius: 6px;
+      font-size: 14px; color: #fff; border: none;
+      cursor: pointer; line-height: 1;
+      width: auto; box-shadow: none; margin: 0;
     }
     #pc-canvas { width: 100%; height: 100%; display: block; }
     #pc-status {
@@ -132,6 +148,7 @@
         <canvas id="pc-canvas"></canvas>
         <div id="pc-status">点上方按钮启动</div>
         <div id="pc-fps" style="display:none">FPS: --</div>
+        <button id="pc-fs-btn" title="沉浸模式 / 双击 canvas 复位视角">⛶</button>
       </div>
     </div>
 
@@ -600,15 +617,19 @@
       }
     }
 
-    // ====== Orbit camera 触摸控制(1 指拖 = yaw/pitch,2 指捏 = zoom)======
+    // ====== Orbit camera 触摸控制(1 指拖 = yaw/pitch,2 指捏 = zoom,双击 = 复位)======
     function attachOrbitTouch(canvas, cam, initialRadius) {
       const PITCH_LIMIT = Math.PI / 2 - 0.1;
       const RADIUS_MIN = Math.max(initialRadius * 0.3, 0.5);
       const RADIUS_MAX = initialRadius * 4;
       // 像素 → 弧度的灵敏度(横竖屏自适应)
       const ROT_SENS = 0.005;
+      // 双击 300ms 内触发复位
+      const DBLTAP_MS = 300;
+      let lastTapMs = 0;
       let touches = []; // [{id, x, y}]
       let lastPinchDist = 0;
+      const INITIAL = { yaw: cam.yaw, pitch: cam.pitch, radius: cam.radius };
 
       const getDist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 
@@ -618,6 +639,21 @@
         cam.lastInteractMs = performance.now();
         touches = Array.from(e.touches).map(t => ({ id: t.identifier, x: t.clientX, y: t.clientY }));
         if (touches.length === 2) lastPinchDist = getDist(touches[0], touches[1]);
+        // 双击检测(单指快速点两次)— 复位 + 重启自动转
+        if (touches.length === 1) {
+          const now = performance.now();
+          if (now - lastTapMs < DBLTAP_MS) {
+            cam.yaw = INITIAL.yaw;
+            cam.pitch = INITIAL.pitch;
+            cam.radius = INITIAL.radius;
+            cam.autoRotate = true;
+            cam.lastInteractMs = 0;
+            lastTapMs = 0;
+            if (window.RoamBridge && window.RoamBridge.toast) window.RoamBridge.toast('视角复位');
+          } else {
+            lastTapMs = now;
+          }
+        }
       }
       function onMove(e) {
         e.preventDefault();
@@ -1100,6 +1136,22 @@
         window.RoamBridge.openDeepLink(lastQrScene);
       }
     });
+
+    // 沉浸模式 toggle(右上 ⛶ 按钮)
+    const fsBtn = document.getElementById('pc-fs-btn');
+    const canvasWrap = document.getElementById('pc-canvas-wrap');
+    if (fsBtn) {
+      fsBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const isFs = canvasWrap.classList.toggle('fullscreen');
+        fsBtn.textContent = isFs ? '✕' : '⛶';
+        // canvas 尺寸变了,PlayCanvas 需要重新计算 resolution
+        if (pcApp) {
+          // 触发 PlayCanvas FILLMODE_FILL_WINDOW 自动 resize
+          window.dispatchEvent(new Event('resize'));
+        }
+      });
+    }
 
     // ⑦ 截屏(canvas → PNG)
     document.getElementById('snap-btn').addEventListener('click', () => {

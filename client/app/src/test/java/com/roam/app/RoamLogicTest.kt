@@ -298,4 +298,62 @@ class RoamLogicTest {
         assertEquals("roam-apartment-20260516.mp4", o.getString("name"))
         assertEquals(2_400_000L, o.getLong("size"))
     }
+
+    // ===== safeScanDeepLink(扫码安全决策)=====
+
+    @Test
+    fun safeScan_validRoamScene_returnsCanonical() {
+        assertEquals("roam://scene/apartment",
+            RoamLogic.safeScanDeepLink("roam://scene/apartment"))
+    }
+
+    @Test
+    fun safeScan_validWithQueryString_stripsAndReturns() {
+        // 去掉 ?... 部分,只取 scene name
+        assertEquals("roam://scene/apartment",
+            RoamLogic.safeScanDeepLink("roam://scene/apartment?utm=qr"))
+    }
+
+    @Test
+    fun safeScan_validWithFragment_stripsAndReturns() {
+        assertEquals("roam://scene/apartment",
+            RoamLogic.safeScanDeepLink("roam://scene/apartment#section"))
+    }
+
+    @Test
+    fun safeScan_nullOrEmpty_returnsNull() {
+        assertNull(RoamLogic.safeScanDeepLink(null))
+        assertNull(RoamLogic.safeScanDeepLink(""))
+        assertNull(RoamLogic.safeScanDeepLink("   "))
+    }
+
+    @Test
+    fun safeScan_wrongScheme_returnsNull() {
+        assertNull(RoamLogic.safeScanDeepLink("https://example.com/scene/apartment"))
+        assertNull(RoamLogic.safeScanDeepLink("file:///etc/passwd"))
+    }
+
+    @Test
+    fun safeScan_wrongHost_returnsNull() {
+        // 防 roam://settings/reset / roam://exec/... 等恶意非 scene host
+        assertNull(RoamLogic.safeScanDeepLink("roam://settings/reset"))
+        assertNull(RoamLogic.safeScanDeepLink("roam://exec/rm"))
+    }
+
+    @Test
+    fun safeScan_invalidSceneName_returnsNull() {
+        // 防 JS / SQL / path traversal 注入
+        assertNull(RoamLogic.safeScanDeepLink("roam://scene/../../evil"))
+        assertNull(RoamLogic.safeScanDeepLink("roam://scene/apt';alert(1)"))
+        assertNull(RoamLogic.safeScanDeepLink("roam://scene/公寓"))
+        assertNull(RoamLogic.safeScanDeepLink("roam://scene/"))
+    }
+
+    @Test
+    fun safeScan_arbitraryText_returnsNull() {
+        // 扫到广告 / URL / 文本 → 不自动跳
+        assertNull(RoamLogic.safeScanDeepLink("https://random-site.com"))
+        assertNull(RoamLogic.safeScanDeepLink("just some text"))
+        assertNull(RoamLogic.safeScanDeepLink("tel:10086"))
+    }
 }

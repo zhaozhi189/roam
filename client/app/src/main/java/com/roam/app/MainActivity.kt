@@ -88,10 +88,11 @@ class MainActivity : ComponentActivity() {
                 "window.onScanResult && window.onScanResult(${JSONObject.quote(raw)})", null
             )
         }
-        // 扫到 roam:// scheme 直接跳
-        if (raw.startsWith("roam://")) {
+        // 只信任 roam://scene/<合法 name>(RoamLogic 测试覆盖,防恶意码注入)
+        val safeUri = RoamLogic.safeScanDeepLink(raw)
+        if (safeUri != null) {
             try {
-                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(raw))
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(safeUri))
                     .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
                 startActivity(intent)
             } catch (e: Exception) {

@@ -110,4 +110,24 @@ object RoamLogic {
     /** 构造 RoamBridge.listRecordings 单项 JSON(escape 防恶意文件名破坏 JSON) */
     fun buildMediaItemJson(absolutePath: String, name: String, sizeBytes: Long, mtimeMs: Long): String =
         """{"path":"${escapeJsonString(absolutePath)}","name":"${escapeJsonString(name)}","size":$sizeBytes,"mtime":$mtimeMs}"""
+
+    /**
+     * ZXing 扫码结果安全决策。
+     *
+     * 用户可能扫到任意码(URL / 文本 / 恶意 deep link)。
+     * 只对 roam://scene/<合法 name> 自动 startActivity 跳转,其它一律 null(显示给用户决定)。
+     * 防恶意:roam://settings/reset / roam://exec/... 等都被 parseDeepLinkScene 兜底拒绝。
+     *
+     * @return 可信的 deep link URI(可直接 startActivity ACTION_VIEW),null = 不自动跳
+     */
+    fun safeScanDeepLink(rawScanResult: String?): String? {
+        if (rawScanResult.isNullOrBlank()) return null
+        val prefix = "roam://scene/"
+        if (!rawScanResult.startsWith(prefix)) return null
+        val sceneName = rawScanResult.substring(prefix.length)
+            .substringBefore('?').substringBefore('#').trim()
+        return if (parseDeepLinkScene("roam", "scene", sceneName) != null)
+            "roam://scene/$sceneName"
+        else null
+    }
 }

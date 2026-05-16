@@ -113,6 +113,8 @@
       font-size: 12px; color: rgba(255,255,255,0.5);
       pointer-events: none;
     }
+    /* 错误状态下 status 内允许点击(重试按钮)*/
+    #pc-status button { pointer-events: auto; }
     #pc-fps {
       position: absolute; top: 8px; right: 8px;
       background: rgba(0,0,0,0.5); backdrop-filter: blur(8px);
@@ -461,7 +463,7 @@
       badge.textContent = '加载中…';
       badge.className = 'status status-pending';
       setLoadingStatus('加载 ' + sceneName + '…');
-
+      lastSceneStarter = () => startGSplatScene(url, sceneName);
 
       // 清理旧 app(三个按钮可以来回切)
       if (pcApp) {
@@ -558,13 +560,9 @@
         const msg = (err && err.message) || String(err);
         const stack = (err && err.stack) || '(无 stack)';
         console.error('[Roam] startGSplatScene 失败:', err);
-        // 屏幕上显示完整错误(供拍照)
-        status.style.display = 'flex';
-        status.style.cssText += ';color:#F87171;background:rgba(239,68,68,0.15);padding:12px;font-family:ui-monospace,monospace;font-size:10px;line-height:1.4;white-space:pre-wrap;text-align:left;align-items:flex-start;justify-content:flex-start;overflow:auto;';
-        status.textContent = '❌ ' + sceneName + '\nmsg: ' + msg + '\n\nstack:\n' + stack.split('\n').slice(0, 6).join('\n');
+        setErrorStatus(sceneName, msg, stack);
         badge.textContent = '✗ ' + sceneName;
         badge.className = 'status status-error';
-        // Toast 弹给用户看 + 写 logcat
         if (window.RoamBridge && window.RoamBridge.toast) window.RoamBridge.toast('Splat 错: ' + msg);
         if (window.RoamBridge && window.RoamBridge.log) window.RoamBridge.log('GSplatError', sceneName + ' | ' + msg + ' | ' + stack);
       }
@@ -584,6 +582,24 @@
       status.appendChild(sp);
       status.appendChild(tx);
     }
+    // 记录上次成功启动场景的方式,用于「重试」按钮
+    let lastSceneStarter = null;
+    function setErrorStatus(title, msg, stack) {
+      const status = document.getElementById('pc-status');
+      status.style.display = 'flex';
+      status.style.cssText = ';color:#F87171;background:rgba(239,68,68,0.15);padding:12px;font-family:ui-monospace,monospace;font-size:10px;line-height:1.4;white-space:pre-wrap;text-align:left;align-items:flex-start;justify-content:flex-start;overflow:auto;';
+      while (status.firstChild) status.removeChild(status.firstChild);
+      const t = document.createElement('div');
+      t.textContent = '❌ ' + title + '\nmsg: ' + msg + '\n\nstack:\n' + (stack || '').split('\n').slice(0, 5).join('\n');
+      status.appendChild(t);
+      if (lastSceneStarter) {
+        const retry = document.createElement('button');
+        retry.textContent = '🔁 重试';
+        retry.style.cssText = 'margin-top:10px;padding:6px 14px;background:linear-gradient(135deg,#8B5CF6,#3B82F6);color:#fff;border:none;border-radius:8px;font-size:11px;cursor:pointer;font-weight:600;pointer-events:auto;';
+        retry.addEventListener('click', (e) => { e.stopPropagation(); lastSceneStarter && lastSceneStarter(); });
+        status.appendChild(retry);
+      }
+    }
 
     // ====== D · 启动 SPZ 场景(@spz-loader/playcanvas UMD)======
     async function startSpzScene(spzBuffer, sceneName, sceneTag) {
@@ -596,6 +612,7 @@
       badge.className = 'status status-pending';
       setLoadingStatus('加载 ' + sceneName + '…(WASM 解码 1-3s)');
       setCurrentScene(sceneTag || 'spz', sceneName);
+      lastSceneStarter = () => startSpzScene(spzBuffer, sceneName, sceneTag);
 
       if (pcApp) {
         try { pcApp.destroy(); } catch (e) { console.warn('[Roam] old pcApp destroy:', e); }
@@ -664,9 +681,7 @@
         const msg = (err && err.message) || String(err);
         const stack = (err && err.stack) || '(无 stack)';
         console.error('[Roam] startSpzScene 失败:', err);
-        status.style.display = 'flex';
-        status.style.cssText += ';color:#F87171;background:rgba(239,68,68,0.15);padding:12px;font-family:ui-monospace,monospace;font-size:10px;line-height:1.4;white-space:pre-wrap;text-align:left;align-items:flex-start;justify-content:flex-start;overflow:auto;';
-        status.textContent = '❌ SPZ ' + sceneName + '\nmsg: ' + msg + '\n\nstack:\n' + stack.split('\n').slice(0, 6).join('\n');
+        setErrorStatus('SPZ ' + sceneName, msg, stack);
         badge.textContent = '✗ SPZ';
         badge.className = 'status status-error';
         if (window.RoamBridge && window.RoamBridge.toast) window.RoamBridge.toast('SPZ 错: ' + msg);
@@ -1196,18 +1211,28 @@
     // 沉浸模式 toggle(右上 ⛶ 按钮)
     const fsBtn = document.getElementById('pc-fs-btn');
     const canvasWrap = document.getElementById('pc-canvas-wrap');
+    function toggleFullscreen(toState) {
+      const want = toState != null ? toState : !canvasWrap.classList.contains('fullscreen');
+      canvasWrap.classList.toggle('fullscreen', want);
+      if (fsBtn) fsBtn.textContent = want ? '✕' : '⛶';
+      if (pcApp) window.dispatchEvent(new Event('resize'));
+      return want;
+    }
     if (fsBtn) {
       fsBtn.addEventListener('click', (e) => {
         e.stopPropagation();
-        const isFs = canvasWrap.classList.toggle('fullscreen');
-        fsBtn.textContent = isFs ? '✕' : '⛶';
-        // canvas 尺寸变了,PlayCanvas 需要重新计算 resolution
-        if (pcApp) {
-          // 触发 PlayCanvas FILLMODE_FILL_WINDOW 自动 resize
-          window.dispatchEvent(new Event('resize'));
-        }
+        toggleFullscreen();
       });
     }
+    // Android Back 键:沉浸模式时先退沉浸,再 back 才退 App
+    // 返回 true = 已处理(MainActivity 不再 dispatchBack),false = 走默认
+    window.onAndroidBack = function () {
+      if (canvasWrap.classList.contains('fullscreen')) {
+        toggleFullscreen(false);
+        return true;
+      }
+      return false;
+    };
 
     // ⑦ 截屏(canvas → PNG)+ 快门 flash
     document.getElementById('snap-btn').addEventListener('click', () => {

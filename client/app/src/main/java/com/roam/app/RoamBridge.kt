@@ -104,7 +104,7 @@ class RoamBridge(
     fun saveVideoBase64(filename: String, base64: String): String {
         return try {
             val dir = File(activity.filesDir, "recordings").apply { mkdirs() }
-            val safeName = filename.replace(Regex("[^a-zA-Z0-9._-]"), "_")
+            val safeName = RoamLogic.sanitizeFilename(filename)
             val out = File(dir, safeName)
             val bytes = Base64.decode(base64, Base64.DEFAULT)
             FileOutputStream(out).use { it.write(bytes) }
@@ -136,12 +136,7 @@ class RoamBridge(
             MediaStore.Video.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
         val relativePath = if (isImage) "${Environment.DIRECTORY_PICTURES}/Roam"
                            else         "${Environment.DIRECTORY_MOVIES}/Roam"
-        val mime = when {
-            filename.endsWith(".mp4") -> "video/mp4"
-            filename.endsWith(".webm") -> "video/webm"
-            filename.endsWith(".png") -> "image/png"
-            else -> "*/*"
-        }
+        val mime = RoamLogic.mimeFromFilename(filename)
         val values = ContentValues().apply {
             put(MediaStore.MediaColumns.DISPLAY_NAME, filename)
             put(MediaStore.MediaColumns.MIME_TYPE, mime)
@@ -166,13 +161,12 @@ class RoamBridge(
     fun deleteVideo(filePath: String): Boolean {
         return try {
             val recordingsDir = File(activity.filesDir, "recordings").canonicalPath
-            val target = File(filePath).canonicalFile
-            // 安全检查:必须在 recordings 目录下,不允许 ../../ 之类越权
-            if (!target.absolutePath.startsWith(recordingsDir)) {
+            // 安全检查:必须在 recordings 目录下(防 ../../ 越权,RoamLogic 单元测试覆盖)
+            if (!RoamLogic.isPathInside(filePath, recordingsDir)) {
                 Log.w(TAG, "deleteVideo 拒绝越权路径: $filePath")
                 return false
             }
-            val ok = target.delete()
+            val ok = File(filePath).delete()
             Log.d(TAG, "deleteVideo $filePath -> $ok")
             ok
         } catch (e: Exception) {
@@ -209,12 +203,7 @@ class RoamBridge(
                 }
                 val authority = "${activity.packageName}.fileprovider"
                 val uri = androidx.core.content.FileProvider.getUriForFile(activity, authority, file)
-                val mime = when {
-                    filePath.endsWith(".mp4") -> "video/mp4"
-                    filePath.endsWith(".webm") -> "video/webm"
-                    filePath.endsWith(".png") -> "image/png"
-                    else -> "*/*"
-                }
+                val mime = RoamLogic.mimeFromFilename(filePath)
                 val intent = Intent(Intent.ACTION_VIEW).apply {
                     setDataAndType(uri, mime)
                     addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)

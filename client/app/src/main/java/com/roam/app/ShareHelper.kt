@@ -49,14 +49,8 @@ object ShareHelper {
             return false
         }
 
-        // 按后缀决定 mime(微信对 image/png 和 video/mp4 都原生支持)
-        val mime = when {
-            filePath.endsWith(".mp4") -> "video/mp4"
-            filePath.endsWith(".webm") -> "video/webm"
-            filePath.endsWith(".png") -> "image/png"
-            filePath.endsWith(".jpg") || filePath.endsWith(".jpeg") -> "image/jpeg"
-            else -> "*/*"
-        }
+        // 按后缀决定 mime(RoamLogic 单一来源,RoamLogicTest 覆盖)
+        val mime = RoamLogic.mimeFromFilename(filePath)
         val sendIntent = Intent(Intent.ACTION_SEND).apply {
             type = mime
             putExtra(Intent.EXTRA_STREAM, uri)

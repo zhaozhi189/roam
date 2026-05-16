@@ -15,6 +15,7 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.webkit.WebViewAssetLoader
 import androidx.activity.ComponentActivity
+import androidx.activity.addCallback
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
@@ -125,6 +126,30 @@ class MainActivity : ComponentActivity() {
         // (debug build 才开;release 默认关闭防泄露)
         WebView.setWebContentsDebuggingEnabled(true)
         enableEdgeToEdge()
+
+        // 沉浸模式时按 Back 键先退出沉浸而不是退 App(JS 监听 onBackPressed)
+        onBackPressedDispatcher.addCallback(this) {
+            val wv = webView
+            if (wv != null) {
+                // 把 Back 事件转给 JS,JS 决定是退沉浸还是兜底退 App
+                wv.evaluateJavascript(
+                    "window.onAndroidBack && window.onAndroidBack()",
+                    { result ->
+                        // result 是 JS 返回值字符串(true = JS 已处理 / false = 走默认退 App)
+                        val handled = result == "true"
+                        if (!handled) {
+                            isEnabled = false
+                            onBackPressedDispatcher.onBackPressed()
+                            isEnabled = true
+                        }
+                    }
+                )
+            } else {
+                isEnabled = false
+                onBackPressedDispatcher.onBackPressed()
+                isEnabled = true
+            }
+        }
         // 自动化测试桥:adb shell am broadcast -a com.roam.app.AUTO --es cmd guitar
         registerReceiver(object : android.content.BroadcastReceiver() {
             override fun onReceive(c: android.content.Context?, intent: Intent?) {
@@ -214,16 +239,17 @@ fun RoamWebView(
                 //   2) extras --es auto <cmd>        → adb 自动化测试(B 路径)
                 //   3) 默认主页
                 val intent = (context as? Activity)?.intent
-                val deepLinkScene = if (intent?.action == Intent.ACTION_VIEW
-                    && intent.data?.scheme == "roam"
-                    && intent.data?.host == "scene"
-                ) intent.data?.lastPathSegment else null
-                // 默认场景:没有 deep link / extras 时,默认加载公寓(开屏立刻看到 3D,wow factor)
-                // 想要纯主页可以 --es auto none(JS 会忽略 'none')
-                val auto = deepLinkScene ?: intent?.getStringExtra("auto") ?: "apartment"
+                val deepLinkScene = if (intent?.action == Intent.ACTION_VIEW)
+                    RoamLogic.parseDeepLinkScene(
+                        intent.data?.scheme,
+                        intent.data?.host,
+                        intent.data?.lastPathSegment
+                    )
+                else null
+                val autoExtra = intent?.getStringExtra("auto")
                 val base = "https://appassets.androidplatform.net/assets/index.html"
-                val url = if (auto != "none") "$base?auto=$auto" else base
-                Log.d("RoamWebView", "loadUrl: $url (deepLink=$deepLinkScene, auto=$auto)")
+                val url = RoamLogic.buildEntryUrl(base, deepLinkScene, autoExtra)
+                Log.d("RoamWebView", "loadUrl: $url (deepLink=$deepLinkScene, autoExtra=$autoExtra)")
                 loadUrl(url)
             }
         }

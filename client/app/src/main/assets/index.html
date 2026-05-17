@@ -134,6 +134,15 @@
       border: 1px solid rgba(139,92,246,0.40);
       pointer-events: none;
     }
+    /* 相机模式 toggle(canvas 左下)*/
+    #pc-mode-btn {
+      position: absolute; bottom: 8px; left: 8px;
+      background: rgba(0,0,0,0.5); backdrop-filter: blur(8px);
+      padding: 4px 10px; border-radius: 999px;
+      font-size: 11px; color: #fff; border: none;
+      cursor: pointer; line-height: 1;
+      width: auto; box-shadow: none; margin: 0;
+    }
 
     .env-info {
       font-size: 11px;
@@ -182,6 +191,7 @@
         <div id="pc-fps" style="display:none">FPS: --</div>
         <div id="pc-scene-chip" style="display:none">—</div>
         <button id="pc-fs-btn" title="沉浸模式 / 双击 canvas 复位视角">⛶</button>
+        <button id="pc-mode-btn" title="室内 / 环绕 切换" style="display:none">🌍 环绕</button>
       </div>
     </div>
 
@@ -323,7 +333,7 @@
       document.getElementById('pc-start').disabled = false;
       document.getElementById('pc-start').addEventListener('click', startPlayCanvasScene);
       document.getElementById('pc-start-apt').disabled = false;
-      document.getElementById('pc-start-apt').addEventListener('click', () => startGSplatScene('scenes/apartment.sog', '🏠 公寓'));
+      document.getElementById('pc-start-apt').addEventListener('click', () => startGSplatScene('scenes/apartment.sog', '🏠 公寓', { mode: 'indoor' }));
       document.getElementById('pc-start-guitar').disabled = false;
       document.getElementById('pc-start-guitar').addEventListener('click', () => startGSplatScene('scenes/guitar.compressed.ply', '🎸 吉他'));
       const spzBtn = document.getElementById('pc-start-spz');
@@ -470,7 +480,8 @@
     }
 
     // ====== 启动 3DGS 真渲染场景(PlayCanvas Engine 2.x 内置 gsplat handler)======
-    async function startGSplatScene(url, sceneName) {
+    async function startGSplatScene(url, sceneName, opts) {
+      opts = opts || {};
       const canvas = document.getElementById('pc-canvas');
       const status = document.getElementById('pc-status');
       const fpsEl = document.getElementById('pc-fps');
@@ -524,40 +535,20 @@
         const aabb = asset.resource && asset.resource.aabb;
         if (aabb) {
           center = aabb.center.clone();
-          radius = Math.max(aabb.halfExtents.length() * 1.8, 1.5);
+          // orbit 距离 = halfExtents 的 1.2 倍(原 1.8 太远看不清细节)
+          radius = Math.max(aabb.halfExtents.length() * 1.2, 1.0);
         }
         console.log('[Roam] AABB center=', center.toString(), 'radius=', radius);
 
-        // Orbit camera 状态(球坐标)
-        const cam = {
-          yaw: 0,        // 水平角(自动转用,弧度)
-          pitch: -0.2,   // 俯仰角(轻微俯视),范围 [-π/2+ε, π/2-ε]
-          radius: radius,
-          autoRotate: true,           // 默认自动转(出漫游感)
-          lastInteractMs: 0,
-          AUTO_RESUME_MS: 3000,       // 3s 无操作恢复自动转
-          AUTO_SPEED: 0.25,           // 自动转速度(rad/s)
-        };
-        // 触摸控制:1 指拖 = yaw/pitch,2 指捏 = zoom
-        attachOrbitTouch(canvas, cam, radius);
+        // mode 决策:opts.mode 显式 > 默认 orbit
+        // 启发不可靠(物体 SPZ 解码后 AABB 也可能很大),改为显式指定
+        const mode = opts.mode || 'orbit';
+        setupCameraOrbitOrIndoor(camera, canvas, center, radius, mode, sceneName);
 
         let frames = 0;
         let lastT = performance.now();
         pcApp.on('update', (dt) => {
-          // 用户长时间没操作 → 自动转
-          if (cam.autoRotate || (performance.now() - cam.lastInteractMs > cam.AUTO_RESUME_MS)) {
-            cam.yaw += dt * cam.AUTO_SPEED;
-            cam.autoRotate = true;
-          }
-          // 球坐标 → 笛卡尔
-          const cp = Math.cos(cam.pitch), sp = Math.sin(cam.pitch);
-          const cy = Math.cos(cam.yaw), sy = Math.sin(cam.yaw);
-          camera.setPosition(
-            center.x + cam.radius * cp * cy,
-            center.y + cam.radius * sp + cam.radius * 0.15,
-            center.z + cam.radius * cp * sy
-          );
-          camera.lookAt(center);
+          updateCameraEachFrame(camera, dt);
           frames++;
           const now = performance.now();
           if (now - lastT >= 1000) {
@@ -618,7 +609,7 @@
     }
 
     // ====== D · 启动 SPZ 场景(@spz-loader/playcanvas UMD)======
-    async function startSpzScene(spzBuffer, sceneName, sceneTag) {
+    async function startSpzScene(spzBuffer, sceneName, sceneTag, opts) {
       const canvas = document.getElementById('pc-canvas');
       const status = document.getElementById('pc-status');
       const fpsEl = document.getElementById('pc-fps');
@@ -696,27 +687,17 @@
         const aabb = gsplatComp && (gsplatComp.aabb || (gsplatComp.instance && gsplatComp.instance.meshInstance && gsplatComp.instance.meshInstance.aabb));
         if (aabb) {
           center = aabb.center.clone();
-          radius = Math.max(aabb.halfExtents.length() * 1.8, 1.5);
+          radius = Math.max(aabb.halfExtents.length() * 1.2, 1.0);
         }
         console.log('[Roam] SPZ AABB center=', center.toString(), 'radius=', radius);
 
-        const cam = { yaw: 0, pitch: -0.2, radius, autoRotate: true, lastInteractMs: 0, AUTO_RESUME_MS: 3000, AUTO_SPEED: 0.25 };
-        attachOrbitTouch(canvas, cam, radius);
+        // SPZ 默认 orbit(物体观赏),显式 opts.mode 覆盖
+        const spzMode = (opts && opts.mode) || 'orbit';
+        setupCameraOrbitOrIndoor(camera, canvas, center, radius, spzMode, sceneName);
 
         let frames = 0, lastT = performance.now();
         pcApp.on('update', (dt) => {
-          if (cam.autoRotate || (performance.now() - cam.lastInteractMs > cam.AUTO_RESUME_MS)) {
-            cam.yaw += dt * cam.AUTO_SPEED;
-            cam.autoRotate = true;
-          }
-          const cp = Math.cos(cam.pitch), sp = Math.sin(cam.pitch);
-          const cy = Math.cos(cam.yaw), sy = Math.sin(cam.yaw);
-          camera.setPosition(
-            center.x + cam.radius * cp * cy,
-            center.y + cam.radius * sp + cam.radius * 0.15,
-            center.z + cam.radius * cp * sy
-          );
-          camera.lookAt(center);
+          updateCameraEachFrame(camera, dt);
           frames++;
           const now = performance.now();
           if (now - lastT >= 1000) {
@@ -740,6 +721,66 @@
         badge.className = 'status status-error';
         if (window.RoamBridge && window.RoamBridge.toast) window.RoamBridge.toast('SPZ 错: ' + msg);
       }
+    }
+
+    // ====== 相机模式管理(orbit 环绕物体 / indoor 站中心 360°)======
+    // 全局 cam 状态 — 由 setupCameraOrbitOrIndoor 重建,updateCameraEachFrame 每帧读
+    let currentCam = null;
+    function setupCameraOrbitOrIndoor(cameraEntity, canvas, center, radius, mode, sceneName) {
+      const cam = {
+        mode: mode,                    // 'orbit' / 'indoor'
+        center: center.clone(),
+        radius: radius,
+        initialRadius: radius,
+        yaw: 0,
+        pitch: mode === 'indoor' ? 0 : -0.2,
+        autoRotate: true,
+        lastInteractMs: 0,
+        AUTO_RESUME_MS: 3000,
+        AUTO_SPEED: mode === 'indoor' ? 0.10 : 0.25,  // indoor 转慢点不晕
+        cameraEntity: cameraEntity,
+      };
+      currentCam = cam;
+      attachOrbitTouch(canvas, cam, radius);
+      // mode toggle 按钮 UI 同步
+      const mbtn = document.getElementById('pc-mode-btn');
+      if (mbtn) {
+        mbtn.style.display = 'block';
+        mbtn.textContent = mode === 'indoor' ? '🏠 室内(切环绕)' : '🌍 环绕(切室内)';
+      }
+    }
+    function updateCameraEachFrame(cameraEntity, dt) {
+      const c = currentCam;
+      if (!c) return;
+      if (c.autoRotate || (performance.now() - c.lastInteractMs > c.AUTO_RESUME_MS)) {
+        c.yaw += dt * c.AUTO_SPEED;
+        c.autoRotate = true;
+      }
+      const cp = Math.cos(c.pitch), sp = Math.sin(c.pitch);
+      const cy = Math.cos(c.yaw), sy = Math.sin(c.yaw);
+      if (c.mode === 'indoor') {
+        // 相机在中心,改变 lookAt 方向(球面方向向量 → 中心 + 方向 远点)
+        cameraEntity.setPosition(c.center.x, c.center.y, c.center.z);
+        const dir = new pc.Vec3(cp * cy, sp, cp * sy);
+        cameraEntity.lookAt(c.center.x + dir.x, c.center.y + dir.y, c.center.z + dir.z);
+      } else {
+        // 相机在 AABB 外环绕中心(物体观赏),y 微抬看脸/前面
+        cameraEntity.setPosition(
+          c.center.x + c.radius * cp * cy,
+          c.center.y + c.radius * sp + c.radius * 0.05,
+          c.center.z + c.radius * cp * sy
+        );
+        cameraEntity.lookAt(c.center);
+      }
+    }
+    function toggleCameraMode() {
+      if (!currentCam) return;
+      currentCam.mode = currentCam.mode === 'indoor' ? 'orbit' : 'indoor';
+      currentCam.pitch = currentCam.mode === 'indoor' ? 0 : -0.2;
+      currentCam.AUTO_SPEED = currentCam.mode === 'indoor' ? 0.10 : 0.25;
+      const mbtn = document.getElementById('pc-mode-btn');
+      if (mbtn) mbtn.textContent = currentCam.mode === 'indoor' ? '🏠 室内(切环绕)' : '🌍 环绕(切室内)';
+      if (window.RoamBridge && window.RoamBridge.toast) window.RoamBridge.toast('相机模式: ' + currentCam.mode);
     }
 
     // ====== Orbit camera 触摸控制(1 指拖 = yaw/pitch,2 指捏 = zoom,双击 = 复位)======
@@ -1275,6 +1316,10 @@
         window.RoamBridge.openDeepLink(lastQrScene);
       }
     });
+
+    // 相机模式 toggle 按钮
+    const modeBtn = document.getElementById('pc-mode-btn');
+    if (modeBtn) modeBtn.addEventListener('click', (e) => { e.stopPropagation(); toggleCameraMode(); });
 
     // 沉浸模式 toggle(右上 ⛶ 按钮)
     const fsBtn = document.getElementById('pc-fs-btn');

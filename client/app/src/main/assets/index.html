@@ -195,6 +195,11 @@
       <div class="meta">三选一启动场景到下方 canvas;④ 录屏录的就是这个 canvas。3DGS demo 文件 vendor 在 assets/scenes/(完全离线)</div>
       <!-- M3-1:按钮由 SCENES 元数据动态生成 -->
       <div id="pc-scene-buttons" style="display:grid;grid-template-columns:1fr 1fr;gap:6px;"></div>
+      <!-- M4-2:最近场景(localStorage 历史)-->
+      <div id="pc-history" style="display:none;margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.06);">
+        <div style="font-size:10px;color:rgba(255,255,255,0.4);margin-bottom:6px;">最近:</div>
+        <div id="pc-history-row" style="display:flex;gap:6px;overflow-x:auto;"></div>
+      </div>
       <div id="pc-canvas-wrap">
         <canvas id="pc-canvas"></canvas>
         <div id="pc-status">点上方按钮启动</div>
@@ -357,24 +362,111 @@
         const btn = document.createElement('button');
         btn.id = 'pc-start-' + s.id;
         btn.disabled = true;
-        btn.style.cssText = 'font-size:11px;padding:9px 8px;';
-        btn.textContent = s.name;
+        btn.style.cssText = 'font-size:11px;padding:6px 6px;position:relative;min-height:48px;display:flex;align-items:center;gap:8px;text-align:left;';
+        // M4-1 缩略图(localStorage cache)
+        const thumb = document.createElement('div');
+        thumb.style.cssText = 'width:36px;height:36px;border-radius:6px;background:rgba(0,0,0,0.25);flex-shrink:0;display:flex;align-items:center;justify-content:center;overflow:hidden;font-size:18px;';
+        try {
+          const cached = localStorage.getItem('roam:thumb:' + s.id);
+          if (cached) {
+            const img = document.createElement('img');
+            img.src = cached;
+            img.style.cssText = 'width:100%;height:100%;object-fit:cover;';
+            thumb.appendChild(img);
+          } else {
+            thumb.textContent = s.name.match(/^[^a-zA-Z0-9\s]+/)?.[0] || '◆';
+          }
+        } catch (e) { thumb.textContent = '◆'; }
+        const label = document.createElement('span');
+        label.style.cssText = 'overflow:hidden;text-overflow:ellipsis;';
+        label.textContent = s.name;
+        btn.appendChild(thumb);
+        btn.appendChild(label);
         wrap.appendChild(btn);
         const start = makeSceneStarter(s, btn);
         sceneStarters[s.id] = start;
         btn.addEventListener('click', start);
       });
     }
+    // 场景加载完 1s 后自动截屏存 localStorage 作 thumbnail
+    function captureSceneThumbnail(sceneId) {
+      setTimeout(() => {
+        try {
+          const canvas = document.getElementById('pc-canvas');
+          if (!canvas || !pcApp) return;
+          // 缩小到 120x120 thumbnail
+          const tmp = document.createElement('canvas');
+          tmp.width = 120; tmp.height = 120;
+          const ctx = tmp.getContext('2d');
+          ctx.drawImage(canvas, 0, 0, 120, 120);
+          const dataUrl = tmp.toDataURL('image/jpeg', 0.7);
+          // ~3-10KB jpeg,localStorage 5MB 足够装 100+
+          localStorage.setItem('roam:thumb:' + sceneId, dataUrl);
+          // 刷新对应按钮 thumb
+          const b = document.getElementById('pc-start-' + sceneId);
+          if (b) {
+            const tdiv = b.firstChild;
+            if (tdiv) {
+              while (tdiv.firstChild) tdiv.removeChild(tdiv.firstChild);
+              tdiv.textContent = '';
+              const img = document.createElement('img');
+              img.src = dataUrl;
+              img.style.cssText = 'width:100%;height:100%;object-fit:cover;';
+              tdiv.appendChild(img);
+            }
+          }
+        } catch (e) { console.warn('[Roam] thumb capture failed:', e); }
+      }, 1500);
+    }
     function makeSceneStarter(s, btn) {
-      // M3-7:每次启动记 sceneId 到 localStorage(供下次启动 / 历史显示)
+      // M3-7 / M4-2:每次启动记 sceneId 到 localStorage(下次启动 + 历史 UI)
       const rememberScene = () => {
-        try { localStorage.setItem('roam:lastSceneId', s.id); } catch (e) {}
+        try {
+          localStorage.setItem('roam:lastSceneId', s.id);
+          const hist = JSON.parse(localStorage.getItem('roam:historyIds') || '[]')
+                            .filter(x => x !== s.id);
+          hist.unshift(s.id);
+          localStorage.setItem('roam:historyIds', JSON.stringify(hist.slice(0, 5)));
+          renderHistory();
+        } catch (e) {}
       };
+      const afterStart = () => { captureSceneThumbnail(s.id); };
       if (s.kind === 'builtin') {
-        return () => { rememberScene(); startPlayCanvasScene(); };
+        return () => { rememberScene(); startPlayCanvasScene(); afterStart(); };
       }
       if (s.kind === 'gsplat') {
-        return () => { rememberScene(); startGSplatScene(s.url, s.name, { mode: s.mode }); };
+        return () => { rememberScene(); startGSplatScene(s.url, s.name, { mode: s.mode }); afterStart(); };
+      }
+      // M4-3 · 用户场景(从 internal storage 读 base64 → blob/buf)
+      if (s.kind === 'gsplat-userpath') {
+        return async () => {
+          rememberScene();
+          if (!window.RoamBridge || !window.RoamBridge.readFileBase64) return;
+          const b64 = window.RoamBridge.readFileBase64(s.path);
+          if (!b64) { alert('读用户场景失败'); return; }
+          const bin = atob(b64);
+          const buf = new ArrayBuffer(bin.length);
+          const view = new Uint8Array(buf);
+          for (let i = 0; i < bin.length; i++) view[i] = bin.charCodeAt(i);
+          const blob = new Blob([buf]);
+          const blobUrl = URL.createObjectURL(blob);
+          await startGSplatScene(blobUrl, s.name, { mode: s.mode });
+          afterStart();
+        };
+      }
+      if (s.isUser && s.kind === 'spz') {
+        return async () => {
+          rememberScene();
+          if (!window.RoamBridge || !window.RoamBridge.readFileBase64) return;
+          const b64 = window.RoamBridge.readFileBase64(s.path);
+          if (!b64) { alert('读 SPZ 失败'); return; }
+          const bin = atob(b64);
+          const buf = new ArrayBuffer(bin.length);
+          const view = new Uint8Array(buf);
+          for (let i = 0; i < bin.length; i++) view[i] = bin.charCodeAt(i);
+          await startSpzScene(buf, s.name, 'user-spz', { mode: s.mode });
+          afterStart();
+        };
       }
       if (s.kind === 'spz') {
         return async () => {
@@ -385,6 +477,7 @@
             if (!resp.ok) throw new Error('HTTP ' + resp.status);
             const buf = await resp.arrayBuffer();
             await startSpzScene(buf, s.name, s.tag, { mode: s.mode });
+            afterStart();
           } catch (e) {
             console.error('[Roam] vendor SPZ 加载失败:', e);
           } finally {
@@ -395,6 +488,53 @@
       return () => alert('未知场景 kind: ' + s.kind);
     }
     buildSceneButtons();
+
+    // M4-3 · 启动时把 user-scenes 持久化的 .ply/.sog/.spz 加入 SCENES
+    function loadUserScenesIntoMenu() {
+      const hasBridge = typeof window.RoamBridge !== 'undefined';
+      if (!hasBridge || !window.RoamBridge.listUserScenes) return;
+      let items;
+      try { items = JSON.parse(window.RoamBridge.listUserScenes() || '[]'); } catch (e) { return; }
+      let added = 0;
+      items.forEach((it) => {
+        const id = 'user-' + it.name.replace(/[^a-zA-Z0-9]/g, '');
+        if (SCENES.find(s => s.id === id)) return;
+        const lower = it.name.toLowerCase();
+        const kind = lower.endsWith('.spz') ? 'spz' : 'gsplat-userpath';
+        SCENES.push({
+          id, name: '📁 ' + it.name, kind,
+          path: it.path,
+          mode: 'orbit',
+          isUser: true,
+        });
+        added++;
+      });
+      if (added > 0) buildSceneButtons();
+    }
+
+    // M4-2 · 历史 UI 渲染(最近 5 个场景 emoji pill,可点回)
+    function renderHistory() {
+      const row = document.getElementById('pc-history-row');
+      const wrap = document.getElementById('pc-history');
+      if (!row || !wrap) return;
+      let hist = [];
+      try { hist = JSON.parse(localStorage.getItem('roam:historyIds') || '[]'); } catch (e) {}
+      if (!hist.length) { wrap.style.display = 'none'; return; }
+      wrap.style.display = 'block';
+      while (row.firstChild) row.removeChild(row.firstChild);
+      hist.forEach((id) => {
+        const s = SCENES.find(x => x.id === id);
+        if (!s) return;
+        const btn = document.createElement('button');
+        btn.style.cssText = 'font-size:11px;padding:5px 12px;border-radius:999px;background:rgba(139,92,246,0.20);color:#DDD6FE;border:1px solid rgba(139,92,246,0.30);box-shadow:none;width:auto;flex-shrink:0;margin:0;cursor:pointer;';
+        btn.textContent = s.name.split(' ')[0] || s.id;  // 只显示 emoji
+        btn.title = s.name;
+        btn.addEventListener('click', () => sceneStarters[id] && sceneStarters[id]());
+        row.appendChild(btn);
+      });
+    }
+    renderHistory();  // 启动时如果有历史,显示
+    setTimeout(loadUserScenesIntoMenu, 100);  // M4-3 装载已持久化的用户场景
 
     // ====== PlayCanvas 加载状态处理(同步检查,不用 onload)======
     function onPcLoaded() {
@@ -1007,7 +1147,18 @@
           const filename = uri.split('/').pop() || (isPly ? 'user.ply' : 'user.sog');
           if (window.RoamBridge.toast) window.RoamBridge.toast(`加载 ${sizeMB} MB ${fmt}`);
           await startGSplatScene(blobUrl, '📂 ' + filename);
-          spzResult.textContent += `\n✅ 渲染中(看 ② canvas)`;
+          // M4-3 · 流式持久化到 user-scenes(避免 base64 OOM)
+          if (window.RoamBridge.copyContentToUserScenes) {
+            const saved = window.RoamBridge.copyContentToUserScenes(uri, filename);
+            if (saved) {
+              spzResult.textContent += `\n✅ 渲染中 + 已加到场景菜单(下次直接点)`;
+              loadUserScenesIntoMenu();
+            } else {
+              spzResult.textContent += `\n✅ 渲染中(本次)`;
+            }
+          } else {
+            spzResult.textContent += `\n✅ 渲染中`;
+          }
         } else if (isSpz) {
           // D · @spz-loader/playcanvas 真渲染(UMD vendor 在 window.SpzWasmPlayCanvas)
           if (!window.SpzWasmPlayCanvas || !window.SpzWasmPlayCanvas.createGSplatEntityFromSpzAsync) {
@@ -1022,6 +1173,13 @@
           if (window.RoamBridge.toast) window.RoamBridge.toast(`SPZ 解码 ${sizeMB} MB`);
           const filename = uri.split('/').pop() || 'user.spz';
           await startSpzScene(buf, '📂 ' + filename, 'user-spz');
+          if (window.RoamBridge.copyContentToUserScenes) {
+            const saved = window.RoamBridge.copyContentToUserScenes(uri, filename);
+            if (saved) {
+              spzResult.textContent += `\n✅ 渲染中 + 已加到场景菜单`;
+              loadUserScenesIntoMenu();
+            }
+          }
           spzResult.textContent += `\n✅ 渲染中(看 ② canvas)`;
         } else {
           spzResult.textContent =
@@ -1179,6 +1337,17 @@
             cctx.fillText('Roam · 即境', w - 14, h - 12);  // shadow
             cctx.fillStyle = 'rgba(255,255,255,0.85)';
             cctx.fillText('Roam · 即境', w - 16, h - 14);
+            // M4-5 录中时长 timer(左上;暂停时显示「⏸ 已暂停」)
+            const elapsed = Math.max(0, Math.floor((performance.now() - recStartTime) / 1000));
+            const mm = String(Math.floor(elapsed / 60)).padStart(2, '0');
+            const ss = String(elapsed % 60).padStart(2, '0');
+            const timerText = recPaused ? '⏸ ' + mm + ':' + ss : '● ' + mm + ':' + ss;
+            cctx.textBaseline = 'top';
+            cctx.textAlign = 'left';
+            cctx.fillStyle = 'rgba(0,0,0,0.5)';
+            cctx.fillText(timerText, 14, 12);
+            cctx.fillStyle = recPaused ? 'rgba(245,158,11,0.95)' : 'rgba(239,68,68,0.95)';
+            cctx.fillText(timerText, 16, 14);
           } catch (e) { console.warn('[Roam] compose draw error:', e); }
           requestAnimationFrame(drawComposite);
         }

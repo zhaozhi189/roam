@@ -259,6 +259,55 @@ class RoamBridge(
         }
     }
 
+    /**
+     * M4-3 · 直接从 content:// URI 复制到 filesDir/user-scenes/(避免 base64 OOM)
+     * SAF 选中的 .ply 大文件 ContentResolver 流式拷贝
+     *
+     * @return 内部 path(失败空字符串)
+     */
+    @JavascriptInterface
+    fun copyContentToUserScenes(contentUri: String, filename: String): String {
+        return try {
+            val dir = File(activity.filesDir, "user-scenes").apply { mkdirs() }
+            val safe = RoamLogic.sanitizeFilename(filename)
+            val out = File(dir, safe)
+            val uri = android.net.Uri.parse(contentUri)
+            activity.contentResolver.openInputStream(uri)?.use { input ->
+                FileOutputStream(out).use { output -> input.copyTo(output) }
+            } ?: return ""
+            Log.d(TAG, "copyContentToUserScenes $safe (${out.length()} bytes)")
+            out.absolutePath
+        } catch (e: Exception) {
+            Log.e(TAG, "copyContentToUserScenes 失败", e)
+            ""
+        }
+    }
+
+    /** M4-3 · 列出 filesDir/user-scenes/ 已持久化的用户场景文件 */
+    @JavascriptInterface
+    fun listUserScenes(): String {
+        val dir = File(activity.filesDir, "user-scenes")
+        if (!dir.exists()) return "[]"
+        val items = dir.listFiles { f ->
+            f.isFile && (f.name.endsWith(".ply", true) ||
+                         f.name.endsWith(".sog", true) ||
+                         f.name.endsWith(".spz", true))
+        }?.sortedByDescending { it.lastModified() }
+        ?.map { f -> RoamLogic.buildMediaItemJson(f.absolutePath, f.name, f.length(), f.lastModified()) }
+        ?: emptyList()
+        return "[" + items.joinToString(",") + "]"
+    }
+
+    /** M4-3 · 删除一个用户场景文件(带越权检查) */
+    @JavascriptInterface
+    fun deleteUserScene(filePath: String): Boolean {
+        return try {
+            val root = File(activity.filesDir, "user-scenes").canonicalPath
+            if (!RoamLogic.isPathInside(filePath, root)) return false
+            File(filePath).delete()
+        } catch (e: Exception) { false }
+    }
+
     /** M3-3 · 读 internal storage 内一个文件 → base64,供 JS 端缩略图列表显示 */
     @JavascriptInterface
     fun readFileBase64(filePath: String): String {

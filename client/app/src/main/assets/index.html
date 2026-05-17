@@ -535,15 +535,12 @@
         const aabb = asset.resource && asset.resource.aabb;
         if (aabb) {
           center = aabb.center.clone();
-          // orbit 距离 = halfExtents 的 1.2 倍(原 1.8 太远看不清细节)
-          radius = Math.max(aabb.halfExtents.length() * 1.2, 1.0);
+          radius = Math.max(aabb.halfExtents.length() * 1.5, 1.5);  // 回 1.5 倍(1.2 太近,1.8 太远)
         }
         console.log('[Roam] AABB center=', center.toString(), 'radius=', radius);
 
-        // mode 决策:opts.mode 显式 > 默认 orbit
         const mode = opts.mode || 'orbit';
-        const heY = aabb ? aabb.halfExtents.y : null;
-        setupCameraOrbitOrIndoor(camera, canvas, center, radius, mode, sceneName, heY);
+        setupCameraOrbitOrIndoor(camera, canvas, center, radius, mode, sceneName);
 
         let frames = 0;
         let lastT = performance.now();
@@ -687,14 +684,12 @@
         const aabb = gsplatComp && (gsplatComp.aabb || (gsplatComp.instance && gsplatComp.instance.meshInstance && gsplatComp.instance.meshInstance.aabb));
         if (aabb) {
           center = aabb.center.clone();
-          radius = Math.max(aabb.halfExtents.length() * 1.2, 1.0);
+          radius = Math.max(aabb.halfExtents.length() * 1.5, 1.5);
         }
         console.log('[Roam] SPZ AABB center=', center.toString(), 'radius=', radius);
 
-        // SPZ 默认 orbit(物体观赏),显式 opts.mode 覆盖
         const spzMode = (opts && opts.mode) || 'orbit';
-        const spzHeY = aabb ? aabb.halfExtents.y : null;
-        setupCameraOrbitOrIndoor(camera, canvas, center, radius, spzMode, sceneName, spzHeY);
+        setupCameraOrbitOrIndoor(camera, canvas, center, radius, spzMode, sceneName);
 
         let frames = 0, lastT = performance.now();
         pcApp.on('update', (dt) => {
@@ -728,18 +723,14 @@
     // 全局 cam 状态 — 由 setupCameraOrbitOrIndoor 重建,updateCameraEachFrame 每帧读
     let currentCam = null;
     function setupCameraOrbitOrIndoor(cameraEntity, canvas, center, radius, mode, sceneName, halfExtentsY) {
-      // orbit 模式:物体扫描 AABB 常被天空/地面 splat 拉伸,center 偏高
-      // → lookAt y 偏下 1/4 halfExtents 让物体居中(用 halfExtents.y 更精确)
-      const heY = halfExtentsY || radius / 1.2; // 退化用 radius 估算
-      const lookAtOffsetY = mode === 'orbit' ? -heY * 0.25 : 0;
+      // 回到 v2 已知 work 行为:lookAt center;orbit pitch -0.2;y 偏移由 update 加 radius*0.15
       const cam = {
         mode: mode,
         center: center.clone(),
         radius: radius,
         initialRadius: radius,
-        lookAtOffsetY: lookAtOffsetY,
         yaw: 0,
-        pitch: mode === 'indoor' ? 0 : -0.1,
+        pitch: mode === 'indoor' ? 0 : -0.2,
         autoRotate: true,
         lastInteractMs: 0,
         AUTO_RESUME_MS: 3000,
@@ -770,14 +761,13 @@
         const dir = new pc.Vec3(cp * cy, sp, cp * sy);
         cameraEntity.lookAt(c.center.x + dir.x, c.center.y + dir.y, c.center.z + dir.z);
       } else {
-        // 相机在 AABB 外环绕中心(物体观赏);相机位置不偏,只 lookAt 偏下
-        // 偏下原因:物体扫描 AABB 常被天空 splat 拉高 → AABB center 偏高 → 物体在画面底部
+        // 相机在 AABB 外环绕中心(物体观赏),y 微抬 0.15*radius(看物体「脸」)
         cameraEntity.setPosition(
           c.center.x + c.radius * cp * cy,
-          c.center.y + c.radius * sp,
+          c.center.y + c.radius * sp + c.radius * 0.15,
           c.center.z + c.radius * cp * sy
         );
-        cameraEntity.lookAt(c.center.x, c.center.y + (c.lookAtOffsetY || 0), c.center.z);
+        cameraEntity.lookAt(c.center);
       }
     }
     function toggleCameraMode() {
@@ -841,10 +831,15 @@
         const now = Array.from(e.touches).map(t => ({ id: t.identifier, x: t.clientX, y: t.clientY }));
         if (now.length === 1 && touches.length === 1) {
           // 单指拖动 → yaw / pitch
+          // pitch 方向 mode-specific:
+          //   indoor: swipe up = pitch 增大 = lookAt 方向向上(看天花板)
+          //   orbit:  swipe up = pitch 减小 = 相机降低 = 仰视场景(场景往上跑)
+          // 共同目标:swipe up 都让"视野往上",符合 mobile 拖图直觉
           const dx = now[0].x - touches[0].x;
           const dy = now[0].y - touches[0].y;
           cam.yaw -= dx * ROT_SENS;
-          cam.pitch -= dy * ROT_SENS;
+          const pitchSign = cam.mode === 'orbit' ? 1 : -1;
+          cam.pitch += dy * ROT_SENS * pitchSign;
           if (cam.pitch > PITCH_LIMIT) cam.pitch = PITCH_LIMIT;
           if (cam.pitch < -PITCH_LIMIT) cam.pitch = -PITCH_LIMIT;
         } else if (now.length === 2 && touches.length === 2) {

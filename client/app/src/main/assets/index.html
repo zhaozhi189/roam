@@ -785,11 +785,13 @@
 
     // ====== Orbit camera 触摸控制(1 指拖 = yaw/pitch,2 指捏 = zoom,双击 = 复位)======
     function attachOrbitTouch(canvas, cam, initialRadius) {
-      const PITCH_LIMIT = Math.PI / 2 - 0.1;
-      const RADIUS_MIN = Math.max(initialRadius * 0.3, 0.5);
-      const RADIUS_MAX = initialRadius * 4;
-      // 像素 → 弧度的灵敏度(横竖屏自适应)
-      const ROT_SENS = 0.005;
+      const PITCH_LIMIT = Math.PI / 2 - 0.05;
+      const RADIUS_MIN = Math.max(initialRadius * 0.15, 0.3);
+      const RADIUS_MAX = initialRadius * 8;
+      // 像素 → 弧度灵敏度(原 0.005 太钝,canvas 320px 高拖到天顶要 ~300px)
+      const ROT_SENS = 0.01;
+      // indoor 模式 zoom 改 FOV(deg):站中心 radius 无意义
+      const FOV_MIN = 20, FOV_MAX = 110;
       // 双击 300ms 内触发复位
       const DBLTAP_MS = 300;
       let lastTapMs = 0;
@@ -812,6 +814,11 @@
             cam.yaw = INITIAL.yaw;
             cam.pitch = INITIAL.pitch;
             cam.radius = INITIAL.radius;
+            // FOV 复位到 PlayCanvas 默认 45
+            if (cam.mode === 'indoor' && cam.cameraEntity && cam.cameraEntity.camera) {
+              cam.fov = 45;
+              cam.cameraEntity.camera.fov = 45;
+            }
             cam.autoRotate = true;
             cam.lastInteractMs = 0;
             lastTapMs = 0;
@@ -834,13 +841,22 @@
           if (cam.pitch > PITCH_LIMIT) cam.pitch = PITCH_LIMIT;
           if (cam.pitch < -PITCH_LIMIT) cam.pitch = -PITCH_LIMIT;
         } else if (now.length === 2 && touches.length === 2) {
-          // 双指捏 → 缩放
+          // 双指捏 → zoom
           const d = getDist(now[0], now[1]);
           if (lastPinchDist > 0) {
-            const scale = lastPinchDist / d;  // 指向外滑 d 变大 → scale<1 → radius 减小(拉近)
-            cam.radius *= scale;
-            if (cam.radius < RADIUS_MIN) cam.radius = RADIUS_MIN;
-            if (cam.radius > RADIUS_MAX) cam.radius = RADIUS_MAX;
+            const scale = lastPinchDist / d;  // 指向外滑 d 变大 → scale<1 → zoom in
+            if (cam.mode === 'indoor' && cam.cameraEntity && cam.cameraEntity.camera) {
+              // indoor:改 FOV(scale<1 = zoom in = FOV 减小,看更窄更大)
+              cam.fov = (cam.fov || cam.cameraEntity.camera.fov || 45) * scale;
+              if (cam.fov < FOV_MIN) cam.fov = FOV_MIN;
+              if (cam.fov > FOV_MAX) cam.fov = FOV_MAX;
+              cam.cameraEntity.camera.fov = cam.fov;
+            } else {
+              // orbit:改 radius
+              cam.radius *= scale;
+              if (cam.radius < RADIUS_MIN) cam.radius = RADIUS_MIN;
+              if (cam.radius > RADIUS_MAX) cam.radius = RADIUS_MAX;
+            }
           }
           lastPinchDist = d;
         }

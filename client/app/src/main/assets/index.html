@@ -73,13 +73,16 @@
       position: relative;
       overflow: hidden;
     }
-    /* 沉浸模式:canvas 占满整屏(零侵入,只加一个 class)*/
+    /* 沉浸模式:canvas 占满整屏。
+       ⚠️ 注:父级 .card 用了 backdrop-filter 会创建 stacking context,
+       让 position:fixed 局限在卡片内 → 沉浸不全屏。
+       Fix:JS 在 fullscreen 时把 canvas-wrap 临时 move 到 body(脱离卡片 stacking)*/
     #pc-canvas-wrap.fullscreen {
       position: fixed; inset: 0;
-      width: 100vw; height: 100dvh;
-      z-index: 9999;
+      width: 100vw; height: 100vh;
+      z-index: 99999;
       border-radius: 0; border: none;
-      margin: 0;
+      margin: 0; background: #000;
     }
     #pc-fs-btn {
       position: absolute; top: 8px; left: 8px;
@@ -1276,9 +1279,21 @@
     // 沉浸模式 toggle(右上 ⛶ 按钮)
     const fsBtn = document.getElementById('pc-fs-btn');
     const canvasWrap = document.getElementById('pc-canvas-wrap');
+    // 记录原 parent + 占位 anchor,便于退出沉浸时恢复
+    const fsAnchor = document.createComment('canvas-wrap-anchor');
     function toggleFullscreen(toState) {
       const want = toState != null ? toState : !canvasWrap.classList.contains('fullscreen');
-      canvasWrap.classList.toggle('fullscreen', want);
+      if (want) {
+        // detach 到 body 末尾,脱离 .card 的 backdrop-filter stacking context
+        canvasWrap.parentNode.insertBefore(fsAnchor, canvasWrap);
+        document.body.appendChild(canvasWrap);
+        canvasWrap.classList.add('fullscreen');
+      } else {
+        canvasWrap.classList.remove('fullscreen');
+        // 恢复到原位置
+        if (fsAnchor.parentNode) fsAnchor.parentNode.insertBefore(canvasWrap, fsAnchor);
+        if (fsAnchor.parentNode) fsAnchor.parentNode.removeChild(fsAnchor);
+      }
       if (fsBtn) fsBtn.textContent = want ? '✕' : '⛶';
       if (pcApp) window.dispatchEvent(new Event('resize'));
       return want;

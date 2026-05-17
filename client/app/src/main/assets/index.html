@@ -535,7 +535,7 @@
         const aabb = asset.resource && asset.resource.aabb;
         if (aabb) {
           center = aabb.center.clone();
-          radius = Math.max(aabb.halfExtents.length() * 1.5, 1.5);  // 回 1.5 倍(1.2 太近,1.8 太远)
+          radius = Math.max(aabb.halfExtents.length() * 1.8, 1.5);  // v2 已知 work(1.5 太近 splat 出视野)
         }
         console.log('[Roam] AABB center=', center.toString(), 'radius=', radius);
 
@@ -684,7 +684,7 @@
         const aabb = gsplatComp && (gsplatComp.aabb || (gsplatComp.instance && gsplatComp.instance.meshInstance && gsplatComp.instance.meshInstance.aabb));
         if (aabb) {
           center = aabb.center.clone();
-          radius = Math.max(aabb.halfExtents.length() * 1.5, 1.5);
+          radius = Math.max(aabb.halfExtents.length() * 1.8, 1.5);
         }
         console.log('[Roam] SPZ AABB center=', center.toString(), 'radius=', radius);
 

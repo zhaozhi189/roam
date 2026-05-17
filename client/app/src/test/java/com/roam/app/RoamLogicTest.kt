@@ -194,9 +194,9 @@ class RoamLogicTest {
     }
 
     @Test
-    fun entry_defaultApartment_whenBothNull() {
-        // 默认开屏看公寓(wow factor)
-        assertEquals("$BASE?auto=apartment",
+    fun entry_noAuto_whenBothNull() {
+        // M3-7:不传 ?auto=,JS 端读 localStorage 上次场景或 fallback 默认
+        assertEquals(BASE,
             RoamLogic.buildEntryUrl(BASE, null, null))
     }
 

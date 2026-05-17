@@ -65,7 +65,7 @@ object RoamLogic {
 
     /**
      * 构造 WebView 入口 URL
-     * 优先级:deep link scene > extras auto > 默认 apartment
+     * 优先级:deep link scene > extras auto > 不传(JS 端读 localStorage 上次场景,M3-7)
      * "none" 跳过 ?auto=,加载纯主页(给开发调试用)
      */
     fun buildEntryUrl(
@@ -73,8 +73,12 @@ object RoamLogic {
         deepLinkScene: String?,
         autoExtra: String?
     ): String {
-        val auto = deepLinkScene ?: autoExtra ?: "apartment"
-        return if (auto == "none") baseUrl else "$baseUrl?auto=$auto"
+        val auto = deepLinkScene ?: autoExtra
+        return when {
+            auto == "none" -> baseUrl
+            auto != null -> "$baseUrl?auto=$auto"
+            else -> baseUrl   // 不传 auto,JS 端 fallback localStorage 或默认
+        }
     }
 
     /**

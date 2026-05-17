@@ -259,6 +259,23 @@ class RoamBridge(
         }
     }
 
+    /** M3-3 · 读 internal storage 内一个文件 → base64,供 JS 端缩略图列表显示 */
+    @JavascriptInterface
+    fun readFileBase64(filePath: String): String {
+        return try {
+            val recordingsDir = File(activity.filesDir, "recordings").canonicalPath
+            if (!RoamLogic.isPathInside(filePath, recordingsDir)) {
+                Log.w(TAG, "readFileBase64 拒绝越权: $filePath")
+                return ""
+            }
+            val bytes = File(filePath).readBytes()
+            Base64.encodeToString(bytes, Base64.NO_WRAP)
+        } catch (e: Exception) {
+            Log.e(TAG, "readFileBase64 失败", e)
+            ""
+        }
+    }
+
     @JavascriptInterface
     fun toast(message: String) {
         activity.runOnUiThread {

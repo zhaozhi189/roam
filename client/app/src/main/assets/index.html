@@ -173,6 +173,8 @@
 <body>
   <!-- 全屏 flash 层(截屏快门效果)-->
   <div id="snap-flash"></div>
+  <!-- M3-4 · 录屏水印合成 canvas(hidden,每帧 drawImage(pcCanvas) + drawText)-->
+  <canvas id="rec-composite" style="display:none"></canvas>
   <div class="wrap">
     <div class="header">
       <div class="logo">🚶</div>
@@ -191,14 +193,8 @@
     <div class="card">
       <h2>② H9a · 本地 PlayCanvas 场景 <span class="status status-pending" id="pc-badge">vendor 加载中…</span></h2>
       <div class="meta">三选一启动场景到下方 canvas;④ 录屏录的就是这个 canvas。3DGS demo 文件 vendor 在 assets/scenes/(完全离线)</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
-        <button id="pc-start" disabled style="font-size:11px;padding:9px 8px;">🎲 立方体</button>
-        <button id="pc-start-apt" disabled style="font-size:11px;padding:9px 8px;">🏠 公寓 SOG (8MB)</button>
-        <button id="pc-start-guitar" disabled style="font-size:11px;padding:9px 8px;">🎸 吉他 PLY (1.5MB)</button>
-        <button id="pc-start-spz" disabled style="font-size:11px;padding:9px 8px;">🦎 蜥蜴 SPZ (17MB)</button>
-        <button id="pc-start-skull" disabled style="font-size:11px;padding:9px 8px;">💀 骷髅 SOG (5MB)</button>
-        <button id="pc-start-biker" disabled style="font-size:11px;padding:9px 8px;">🏍 摩托手 PLY (2.4MB)</button>
-      </div>
+      <!-- M3-1:按钮由 SCENES 元数据动态生成 -->
+      <div id="pc-scene-buttons" style="display:grid;grid-template-columns:1fr 1fr;gap:6px;"></div>
       <div id="pc-canvas-wrap">
         <canvas id="pc-canvas"></canvas>
         <div id="pc-status">点上方按钮启动</div>
@@ -221,9 +217,10 @@
     <div class="card">
       <h2>④ H7+H8 · 录 PlayCanvas 画面(MP4) + 微信分享 <span class="status status-pending" id="rec-badge">待启动 PlayCanvas</span></h2>
       <div class="meta">必须先点 ② 启动 PlayCanvas。WebCodecs(系统硬件 H.264 编码器)+ mp4-muxer 直出标准 MP4 → 微信原生兼容。**0 系统授权 / 0 切走 App / 完全 JS 内闭环**</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;">
-        <button id="rec-start-btn" disabled>🔴 开始录(MP4)</button>
-        <button id="rec-stop-btn" disabled style="background:linear-gradient(135deg,#EF4444,#DC2626);box-shadow:0 6px 16px rgba(239,68,68,0.25);">⏹ 停止</button>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-top:8px;">
+        <button id="rec-start-btn" disabled style="font-size:11px;padding:9px 8px;">🔴 录(MP4)</button>
+        <button id="rec-pause-btn" disabled style="font-size:11px;padding:9px 8px;background:rgba(245,158,11,0.85);">⏸ 暂停</button>
+        <button id="rec-stop-btn" disabled style="font-size:11px;padding:9px 8px;background:linear-gradient(135deg,#EF4444,#DC2626);box-shadow:0 6px 16px rgba(239,68,68,0.25);">⏹ 停止</button>
       </div>
       <div id="rec-timer" style="display:none;text-align:center;margin-top:8px;font-family:ui-monospace,monospace;color:#EF4444;font-size:13px;">00:00 / 01:00</div>
       <button id="rec-list-btn" style="margin-top:8px;background:rgba(255,255,255,0.08);box-shadow:none;border:1px solid rgba(255,255,255,0.12);">刷新本地视频列表</button>
@@ -337,76 +334,108 @@
       console.log('[Roam] Env collected,', info.length, 'rows');
     }
 
-    // ====== PlayCanvas 加载状态处理(同步检查,不用 onload)======
-    function onPcLoaded() {
-      const status = document.getElementById('pc-status');
-      status.textContent = 'PlayCanvas ' + pc.version + ' 已就绪,三选一启动场景';
-      const badge = document.getElementById('pc-badge');
-      badge.textContent = '✓ ' + pc.version;
-      badge.className = 'status status-ready';
-      document.getElementById('pc-start').disabled = false;
-      document.getElementById('pc-start').addEventListener('click', startPlayCanvasScene);
-      document.getElementById('pc-start-apt').disabled = false;
-      document.getElementById('pc-start-apt').addEventListener('click', () => startGSplatScene('scenes/apartment.sog', '🏠 公寓', { mode: 'indoor' }));
-      document.getElementById('pc-start-guitar').disabled = false;
-      document.getElementById('pc-start-guitar').addEventListener('click', () => startGSplatScene('scenes/guitar.compressed.ply', '🎸 吉他'));
-      const spzBtn = document.getElementById('pc-start-spz');
-      if (spzBtn) {
-        spzBtn.disabled = false;
-        spzBtn.addEventListener('click', async () => {
-          spzBtn.disabled = true;
+    // ====== M3-1 · 场景元数据(加新场景只在这里加一项)======
+    const SCENES = [
+      { id: 'cube', name: '🎲 立方体', kind: 'builtin', mode: 'orbit' },
+      { id: 'apartment', name: '🏠 公寓 SOG (8MB)', kind: 'gsplat',
+        url: 'scenes/apartment.sog', tag: 'apartment', mode: 'indoor' },
+      { id: 'guitar', name: '🎸 吉他 PLY (1.5MB)', kind: 'gsplat',
+        url: 'scenes/guitar.compressed.ply', tag: 'guitar', mode: 'orbit' },
+      { id: 'spz', name: '🦎 蜥蜴 SPZ (17MB)', kind: 'spz',
+        url: 'scenes/hornedlizard.spz', tag: 'lizard', mode: 'orbit' },
+      { id: 'skull', name: '💀 骷髅 SOG (5MB)', kind: 'gsplat',
+        url: 'scenes/skull.sog', tag: 'skull', mode: 'orbit' },
+      { id: 'biker', name: '🏍 摩托手 PLY (2.4MB)', kind: 'gsplat',
+        url: 'scenes/biker.compressed.ply', tag: 'biker', mode: 'orbit' },
+    ];
+    // sceneId → 启动函数(runAuto 用)
+    const sceneStarters = {};
+    function buildSceneButtons() {
+      const wrap = document.getElementById('pc-scene-buttons');
+      while (wrap.firstChild) wrap.removeChild(wrap.firstChild);
+      SCENES.forEach((s) => {
+        const btn = document.createElement('button');
+        btn.id = 'pc-start-' + s.id;
+        btn.disabled = true;
+        btn.style.cssText = 'font-size:11px;padding:9px 8px;';
+        btn.textContent = s.name;
+        wrap.appendChild(btn);
+        const start = makeSceneStarter(s, btn);
+        sceneStarters[s.id] = start;
+        btn.addEventListener('click', start);
+      });
+    }
+    function makeSceneStarter(s, btn) {
+      // M3-7:每次启动记 sceneId 到 localStorage(供下次启动 / 历史显示)
+      const rememberScene = () => {
+        try { localStorage.setItem('roam:lastSceneId', s.id); } catch (e) {}
+      };
+      if (s.kind === 'builtin') {
+        return () => { rememberScene(); startPlayCanvasScene(); };
+      }
+      if (s.kind === 'gsplat') {
+        return () => { rememberScene(); startGSplatScene(s.url, s.name, { mode: s.mode }); };
+      }
+      if (s.kind === 'spz') {
+        return async () => {
+          rememberScene();
+          if (btn) btn.disabled = true;
           try {
-            const resp = await fetch('scenes/hornedlizard.spz');
+            const resp = await fetch(s.url);
             if (!resp.ok) throw new Error('HTTP ' + resp.status);
             const buf = await resp.arrayBuffer();
-            await startSpzScene(buf, '🦎 蜥蜴', 'lizard');
+            await startSpzScene(buf, s.name, s.tag, { mode: s.mode });
           } catch (e) {
             console.error('[Roam] vendor SPZ 加载失败:', e);
           } finally {
-            spzBtn.disabled = false;
+            if (btn) btn.disabled = false;
           }
-        });
+        };
       }
-      const skullBtn = document.getElementById('pc-start-skull');
-      if (skullBtn) {
-        skullBtn.disabled = false;
-        skullBtn.addEventListener('click', () => startGSplatScene('scenes/skull.sog', '💀 骷髅'));
-      }
-      const bikerBtn = document.getElementById('pc-start-biker');
-      if (bikerBtn) {
-        bikerBtn.disabled = false;
-        bikerBtn.addEventListener('click', () => startGSplatScene('scenes/biker.compressed.ply', '🏍 摩托手'));
-      }
+      return () => alert('未知场景 kind: ' + s.kind);
+    }
+    buildSceneButtons();
+
+    // ====== PlayCanvas 加载状态处理(同步检查,不用 onload)======
+    function onPcLoaded() {
+      const status = document.getElementById('pc-status');
+      status.textContent = 'PlayCanvas ' + pc.version + ' 已就绪';
+      const badge = document.getElementById('pc-badge');
+      badge.textContent = '✓ ' + pc.version;
+      badge.className = 'status status-ready';
+      // enable all scene buttons
+      SCENES.forEach((s) => {
+        const b = document.getElementById('pc-start-' + s.id);
+        if (b) b.disabled = false;
+      });
       console.log('[Roam] PlayCanvas loaded:', pc.version);
       // URL hash 自动测试:启动时 query string ?auto=xxx,运行中 RoamBridge.runAuto('xxx')
       function runAuto(cmd) {
-        const map = { apartment: 'pc-start-apt', guitar: 'pc-start-guitar', cube: 'pc-start', spz: 'pc-start-spz', skull: 'pc-start-skull', biker: 'pc-start-biker',
-                      record: 'rec-start-btn', stop: 'rec-stop-btn', list: 'rec-list-btn',
+        // 特殊 cmd
+        if (cmd === 'immersive') { if (typeof toggleFullscreen === 'function') toggleFullscreen(); return; }
+        if (cmd === 'reset-view') { if (lastSceneStarter) lastSceneStarter(); return; }
+        // 场景 cmd → sceneStarters(SCENES JSON 驱动)
+        if (sceneStarters[cmd]) { sceneStarters[cmd](); return; }
+        // 其他 UI 按钮 cmd → button id 映射
+        const map = { record: 'rec-start-btn', stop: 'rec-stop-btn', list: 'rec-list-btn',
                       pick: 'spz-pick-btn', snap: 'snap-btn', scan: 'scan-btn',
                       'qr-apt': 'qr-apt', 'qr-guitar': 'qr-guitar', 'qr-cube': 'qr-cube' };
-        // 特殊 cmd:无对应按钮,直接调函数
-        if (cmd === 'immersive') {
-          if (typeof toggleFullscreen === 'function') toggleFullscreen();
-          return;
-        }
-        if (cmd === 'reset-view') {
-          // 没有专用按钮,模拟双击效果 — 简化:发自定义事件让 attachOrbitTouch 内 logic 处理
-          // 实际实现:重新启动当前场景(粗暴但有效)
-          if (lastSceneStarter) lastSceneStarter();
-          return;
-        }
         const btn = document.getElementById(map[cmd]);
         if (btn) {
           btn.click();
-          // ⑤ 二维码 / ⑥ 扫码 / ⑦ 截屏 这些在底部,滚到可见
           if (cmd.startsWith('qr-') || cmd === 'scan' || cmd === 'snap') {
             btn.scrollIntoView({ behavior: 'instant', block: 'center' });
           }
         }
       }
       window.runAuto = runAuto;
-      const auto = (new URLSearchParams(location.search)).get('auto');
-      if (auto) setTimeout(() => runAuto(auto), 600);
+      // M3-7:启动场景优先级 — URL ?auto= > localStorage 上次 > 默认 'apartment'
+      const autoQ = (new URLSearchParams(location.search)).get('auto');
+      let lastScene = null;
+      try { lastScene = localStorage.getItem('roam:lastSceneId'); } catch (e) {}
+      const auto = autoQ || lastScene || 'apartment';
+      console.log('[Roam] startup auto=' + auto + ' (URL=' + autoQ + ' last=' + lastScene + ')');
+      setTimeout(() => runAuto(auto), 600);
     }
     function onPcError() {
       const status = document.getElementById('pc-status');
@@ -434,6 +463,14 @@
         chip.textContent = displayName || tag || 'scene';
         chip.style.display = 'block';
       }
+      // M3-7 · localStorage 记最近场景(下次启动可恢复)
+      try {
+        localStorage.setItem('roam:lastScene', currentSceneTag);
+        const histRaw = localStorage.getItem('roam:sceneHistory') || '[]';
+        const hist = JSON.parse(histRaw).filter(x => x !== currentSceneTag);
+        hist.unshift(currentSceneTag);
+        localStorage.setItem('roam:sceneHistory', JSON.stringify(hist.slice(0, 5)));
+      } catch (e) { /* ignore */ }
     }
     function startPlayCanvasScene() {
       const canvas = document.getElementById('pc-canvas');
@@ -1013,6 +1050,7 @@
     // ====== H7 + H8 录屏 + 分享(Z 路径:WebCodecs + mp4-muxer 直出 H.264 MP4)======
     const recStartBtn = document.getElementById('rec-start-btn');
     const recStopBtn = document.getElementById('rec-stop-btn');
+    const recPauseBtn = document.getElementById('rec-pause-btn');
     const recListBtn = document.getElementById('rec-list-btn');
     const recList = document.getElementById('rec-list');
     const recBadge = document.getElementById('rec-badge');
@@ -1020,6 +1058,8 @@
 
     let videoEncoder = null;
     let mp4Muxer = null;
+    let recCompositeStop = true;  // M3-4 水印 rAF 循环 stop flag
+    let recPaused = false;        // M3-5 暂停标志(暂停期间不 encode,但 frame 继续读 close)
     let recStartTime = 0;
     let recFrameCount = 0;
     let recTimerInterval = null;
@@ -1059,6 +1099,15 @@
 
     recStartBtn.addEventListener('click', startWebCodecsRecording);
     recStopBtn.addEventListener('click', stopWebCodecsRecording);
+    recPauseBtn.addEventListener('click', () => {
+      if (!recRecording) return;
+      recPaused = !recPaused;
+      recPauseBtn.textContent = recPaused ? '▶ 继续' : '⏸ 暂停';
+      recBadge.textContent = recPaused ? '⏸ 暂停中' : '🔴 录制中(MP4)';
+      if (window.RoamBridge && window.RoamBridge.toast) {
+        window.RoamBridge.toast(recPaused ? '录制已暂停' : '录制继续');
+      }
+    });
     recListBtn.addEventListener('click', refreshRecList);
 
     async function startWebCodecsRecording() {
@@ -1110,10 +1159,31 @@
         }
         videoEncoder.configure(cfg);
 
-        // 用 captureStream + MediaStreamTrackProcessor 拿 VideoFrame
-        // 这样 VideoFrame 从 MediaStream pipeline 出来,colorSpace 等元数据自动设置
-        // 直接 new VideoFrame(canvas) 在 WebGL canvas 上会 colorSpace=null 报错
-        recStream = canvas.captureStream(REC_FPS);
+        // M3-4 · 录屏水印合成:
+        //   每帧 drawImage(pcCanvas) → 加 "Roam · 即境" 文字 → captureStream 这个 composite canvas
+        //   ~30MB/s 带宽,Magic7 Pro CPU 可承受
+        const composite = document.getElementById('rec-composite');
+        composite.width = w; composite.height = h;
+        const cctx = composite.getContext('2d');
+        recCompositeStop = false;
+        function drawComposite() {
+          if (recCompositeStop) return;
+          try {
+            cctx.drawImage(canvas, 0, 0, w, h);
+            // 水印:右下角半透白「Roam · 即境」
+            const fz = Math.max(16, Math.floor(h * 0.025));
+            cctx.font = 'bold ' + fz + 'px -apple-system, "PingFang SC", sans-serif';
+            cctx.textBaseline = 'bottom';
+            cctx.textAlign = 'right';
+            cctx.fillStyle = 'rgba(0,0,0,0.5)';
+            cctx.fillText('Roam · 即境', w - 14, h - 12);  // shadow
+            cctx.fillStyle = 'rgba(255,255,255,0.85)';
+            cctx.fillText('Roam · 即境', w - 16, h - 14);
+          } catch (e) { console.warn('[Roam] compose draw error:', e); }
+          requestAnimationFrame(drawComposite);
+        }
+        drawComposite();
+        recStream = composite.captureStream(REC_FPS);
         const track = recStream.getVideoTracks()[0];
         const processor = new MediaStreamTrackProcessor({ track });
         recFrameReader = processor.readable.getReader();
@@ -1121,8 +1191,11 @@
         recStartTime = performance.now();
         recFrameCount = 0;
         recRecording = true;
+        recPaused = false;
         recStartBtn.disabled = true;
         recStopBtn.disabled = false;
+        recPauseBtn.disabled = false;
+        recPauseBtn.textContent = '⏸ 暂停';
         // 录中锁场景按钮(防误触切场景导致视频内容跳变)
         ['pc-start','pc-start-apt','pc-start-guitar','pc-start-spz','pc-start-skull','pc-start-biker']
           .forEach(id => { const b = document.getElementById(id); if (b) b.disabled = true; });
@@ -1157,6 +1230,7 @@
           const { value: frame, done } = await recFrameReader.read();
           if (done || !frame) break;
           if (!recRecording) { frame.close(); break; }
+          if (recPaused) { frame.close(); continue; }   // M3-5 暂停:close 但不 encode
           try {
             videoEncoder.encode(frame, { keyFrame: recFrameCount % REC_FPS === 0 });
           } catch (e) {
@@ -1181,16 +1255,20 @@
     async function stopWebCodecsRecording() {
       if (!recRecording) return;
       recRecording = false;
+      recPaused = false;
       clearInterval(recTimerInterval);
       recTimer.style.display = 'none';
       recStartBtn.disabled = false;
+      recPauseBtn.disabled = true;
+      recPauseBtn.textContent = '⏸ 暂停';
       // 解锁场景按钮
       ['pc-start','pc-start-apt','pc-start-guitar','pc-start-spz','pc-start-skull','pc-start-biker']
         .forEach(id => { const b = document.getElementById(id); if (b) b.disabled = false; });
       recStopBtn.disabled = true;
       recBadge.textContent = '处理中…';
       recBadge.className = 'status status-pending';
-      // 关掉 MediaStream pipeline
+      // 关掉 MediaStream pipeline + 水印合成 loop
+      recCompositeStop = true;
       try {
         if (recFrameReader) await recFrameReader.cancel();
         if (recStream) recStream.getTracks().forEach(t => t.stop());
@@ -1261,19 +1339,46 @@
         const row = document.createElement('div');
         row.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.06);gap:6px;';
         const info = document.createElement('div');
-        info.style.cssText = 'flex:1;min-width:0;';
+        info.style.cssText = 'flex:1;min-width:0;display:flex;align-items:center;gap:8px;';
+        const isMp4 = it.name.endsWith('.mp4');
+        const isPng = it.name.endsWith('.png');
+        // M3-3 · PNG 缩略图(通过 Bridge 读 base64);MP4 用 emoji 占位
+        const thumb = document.createElement('div');
+        thumb.style.cssText = 'width:36px;height:36px;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,0.05);border-radius:6px;font-size:18px;overflow:hidden;';
+        if (isPng && window.RoamBridge && window.RoamBridge.readFileBase64) {
+          // 异步读取 base64 + 显示
+          setTimeout(() => {
+            try {
+              const b64 = window.RoamBridge.readFileBase64(it.path);
+              if (b64) {
+                const img = document.createElement('img');
+                img.src = 'data:image/png;base64,' + b64;
+                img.style.cssText = 'width:100%;height:100%;object-fit:cover;';
+                while (thumb.firstChild) thumb.removeChild(thumb.firstChild);
+                thumb.appendChild(img);
+              } else {
+                thumb.textContent = '📸';
+              }
+            } catch (e) { thumb.textContent = '📸'; }
+          }, 0);
+          thumb.textContent = '⋯';
+        } else {
+          thumb.textContent = isMp4 ? '🎬' : (isPng ? '📸' : '🎥');
+        }
+        const textWrap = document.createElement('div');
+        textWrap.style.cssText = 'flex:1;min-width:0;';
         const name = document.createElement('div');
         name.style.cssText = 'color:#F8FAFC;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
-        // 文件类型徽章
-        const isMp4 = it.name.endsWith('.mp4');
-        name.textContent = (isMp4 ? '🎬 ' : '🎥 ') + it.name;
+        name.textContent = it.name;
         const meta = document.createElement('div');
         meta.style.cssText = 'font-size:10px;color:rgba(255,255,255,0.4);';
         const mb = (it.size / 1024 / 1024).toFixed(1);
         const sizeWarn = it.size === 0 ? ' ⚠ 空' : '';
         meta.textContent = mb + ' MB · ' + new Date(it.mtime).toLocaleTimeString() + sizeWarn;
-        info.appendChild(name);
-        info.appendChild(meta);
+        textWrap.appendChild(name);
+        textWrap.appendChild(meta);
+        info.appendChild(thumb);
+        info.appendChild(textWrap);
 
         const actions = document.createElement('div');
         actions.style.cssText = 'display:flex;gap:6px;flex-shrink:0;';

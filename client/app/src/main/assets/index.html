@@ -772,12 +772,21 @@
     }
     function toggleCameraMode() {
       if (!currentCam) return;
-      currentCam.mode = currentCam.mode === 'indoor' ? 'orbit' : 'indoor';
-      currentCam.pitch = currentCam.mode === 'indoor' ? 0 : -0.2;
-      currentCam.AUTO_SPEED = currentCam.mode === 'indoor' ? 0.10 : 0.25;
+      const newMode = currentCam.mode === 'indoor' ? 'orbit' : 'indoor';
+      currentCam.mode = newMode;
+      currentCam.pitch = newMode === 'indoor' ? 0 : -0.2;
+      currentCam.AUTO_SPEED = newMode === 'indoor' ? 0.10 : 0.25;
       const mbtn = document.getElementById('pc-mode-btn');
-      if (mbtn) mbtn.textContent = currentCam.mode === 'indoor' ? '🏠 室内(切环绕)' : '🌍 环绕(切室内)';
-      if (window.RoamBridge && window.RoamBridge.toast) window.RoamBridge.toast('相机模式: ' + currentCam.mode);
+      if (mbtn) mbtn.textContent = newMode === 'indoor' ? '🏠 室内(切环绕)' : '🌍 环绕(切室内)';
+      const t = window.RoamBridge && window.RoamBridge.toast;
+      if (t) {
+        // 物体场景(small radius)切 indoor 可能没 splat 围绕,提示
+        if (newMode === 'indoor' && currentCam.initialRadius < 5) {
+          t('⚠️ 物体场景切室内可能看不到 splat;建议切回环绕');
+        } else {
+          t('相机模式: ' + newMode);
+        }
+      }
     }
 
     // ====== Orbit camera 触摸控制(1 指拖 = yaw/pitch,2 指捏 = zoom,双击 = 复位)======

@@ -642,28 +642,45 @@
         pcApp.root.addChild(camera);
         pcApp.start();
 
-        // PlayCanvas 2.18.1 移除了 GSplatResource.instantiate(),但 @spz-loader 0.3.1 还在用
-        // patch:把 GSplatResource 包成 Asset 走标准路径(跟 .ply/.sog 完全一致,最可靠)
-        if (pc.GSplatResource && !pc.GSplatResource.prototype.instantiate) {
+        // 诊断 + 强制 patch GSplatResource.instantiate
+        const grType = typeof pc.GSplatResource;
+        const grHasInst = typeof pc.GSplatResource?.prototype?.instantiate;
+        const giType = typeof pc.GSplatInstance;
+        console.log('[Roam] pc.GSplatResource=' + grType + ' instantiate=' + grHasInst + ' GSplatInstance=' + giType);
+        if (window.RoamBridge?.toast) window.RoamBridge.toast(`GSR=${grType} inst=${grHasInst} GSI=${giType}`);
+        if (pc.GSplatResource) {
+          // 强制覆盖(不检查 !instantiate),便于反复调试
           pc.GSplatResource.prototype.instantiate = function (materialOptions) {
-            const app = pc.Application.getApplication();
-            const asset = new pc.Asset('spz-' + Date.now(), 'gsplat', null);
-            asset.resource = this;
-            asset.loaded = true;
-            asset.loading = false;
-            if (app && app.assets) app.assets.add(asset);
-            const e = new pc.Entity('spz-splat');
-            e.addComponent('gsplat', { asset: asset });
-            return e;
+            try {
+              const app = pc.Application.getApplication();
+              if (!app || !app.assets) {
+                console.error('[Roam patch] no app/app.assets');
+                return null;
+              }
+              const asset = new pc.Asset('spz-' + Date.now(), 'gsplat', null);
+              asset.resource = this;
+              asset.loaded = true;
+              asset.loading = false;
+              app.assets.add(asset);
+              const e = new pc.Entity('spz-splat');
+              e.addComponent('gsplat', { asset: asset });
+              console.log('[Roam patch] created entity:', e, 'has gsplat:', !!e.gsplat);
+              return e;
+            } catch (err) {
+              console.error('[Roam patch] instantiate failed:', err);
+              return null;
+            }
           };
-          console.log('[Roam] patched GSplatResource.instantiate for spz-loader 0.3.1');
+          console.log('[Roam] FORCED patched GSplatResource.instantiate');
+        } else {
+          throw new Error('pc.GSplatResource 不存在,PlayCanvas 2.18 内部 alias 没暴露');
         }
 
         const t0 = performance.now();
         const splatEntity = await window.SpzWasmPlayCanvas.createGSplatEntityFromSpzAsync(
           spzBuffer, { appId: canvas.id || 'pc-canvas' }
         );
-        if (!splatEntity) throw new Error('createGSplatEntityFromSpzAsync 返回 null/undefined');
+        if (!splatEntity) throw new Error('createGSplatEntityFromSpzAsync 返回 null/undefined(patch 可能没生效)');
         console.log('[Roam] SPZ splatEntity:', splatEntity);
         pcApp.root.addChild(splatEntity);
         const loadMs = (performance.now() - t0).toFixed(0);

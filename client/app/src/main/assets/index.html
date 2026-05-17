@@ -84,6 +84,20 @@
       border-radius: 0; border: none;
       margin: 0; background: #000;
     }
+    /* 沉浸模式 controls auto-hide:3s 无操作淡出,touch 时再出现 */
+    #pc-canvas-wrap.fullscreen.controls-hidden #pc-fps,
+    #pc-canvas-wrap.fullscreen.controls-hidden #pc-scene-chip,
+    #pc-canvas-wrap.fullscreen.controls-hidden #pc-mode-btn,
+    #pc-canvas-wrap.fullscreen.controls-hidden #pc-fs-btn {
+      opacity: 0;
+      transition: opacity 0.5s ease-out;
+    }
+    #pc-canvas-wrap.fullscreen #pc-fps,
+    #pc-canvas-wrap.fullscreen #pc-scene-chip,
+    #pc-canvas-wrap.fullscreen #pc-mode-btn,
+    #pc-canvas-wrap.fullscreen #pc-fs-btn {
+      transition: opacity 0.3s ease-in;
+    }
     #pc-fs-btn {
       position: absolute; top: 8px; left: 8px;
       background: rgba(0,0,0,0.5); backdrop-filter: blur(8px);
@@ -1353,6 +1367,19 @@
     const canvasWrap = document.getElementById('pc-canvas-wrap');
     // 记录原 parent + 占位 anchor,便于退出沉浸时恢复
     const fsAnchor = document.createComment('canvas-wrap-anchor');
+    // 沉浸模式 controls hide timer
+    let fsHideTimer = 0;
+    function scheduleControlsHide() {
+      clearTimeout(fsHideTimer);
+      canvasWrap.classList.remove('controls-hidden');
+      if (canvasWrap.classList.contains('fullscreen')) {
+        fsHideTimer = setTimeout(() => {
+          if (canvasWrap.classList.contains('fullscreen')) {
+            canvasWrap.classList.add('controls-hidden');
+          }
+        }, 3000);
+      }
+    }
     function toggleFullscreen(toState) {
       const want = toState != null ? toState : !canvasWrap.classList.contains('fullscreen');
       if (want) {
@@ -1360,8 +1387,10 @@
         canvasWrap.parentNode.insertBefore(fsAnchor, canvasWrap);
         document.body.appendChild(canvasWrap);
         canvasWrap.classList.add('fullscreen');
+        scheduleControlsHide();
       } else {
-        canvasWrap.classList.remove('fullscreen');
+        canvasWrap.classList.remove('fullscreen', 'controls-hidden');
+        clearTimeout(fsHideTimer);
         // 恢复到原位置
         if (fsAnchor.parentNode) fsAnchor.parentNode.insertBefore(canvasWrap, fsAnchor);
         if (fsAnchor.parentNode) fsAnchor.parentNode.removeChild(fsAnchor);
@@ -1370,6 +1399,10 @@
       if (pcApp) window.dispatchEvent(new Event('resize'));
       return want;
     }
+    // canvas 触摸时,唤起 controls 然后 3s 后再 hide
+    document.getElementById('pc-canvas-wrap').addEventListener('touchstart', () => {
+      if (canvasWrap.classList.contains('fullscreen')) scheduleControlsHide();
+    }, { passive: true });
     if (fsBtn) {
       fsBtn.addEventListener('click', (e) => {
         e.stopPropagation();

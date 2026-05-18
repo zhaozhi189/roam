@@ -157,6 +157,17 @@
       cursor: pointer; line-height: 1;
       width: auto; box-shadow: none; margin: 0;
     }
+    /* M5-1 · 步行 toggle(canvas 左下 mode 按钮右边)*/
+    #pc-walk-btn {
+      position: absolute; bottom: 8px; left: 96px;
+      background: rgba(0,0,0,0.5); backdrop-filter: blur(8px);
+      padding: 4px 10px; border-radius: 999px;
+      font-size: 11px; color: #fff; border: none;
+      cursor: pointer; line-height: 1;
+      width: auto; box-shadow: none; margin: 0;
+      display: none;
+    }
+    #pc-walk-btn.active { background: rgba(34,197,94,0.7); }
 
     .env-info {
       font-size: 11px;
@@ -207,6 +218,7 @@
         <div id="pc-scene-chip" style="display:none">—</div>
         <button id="pc-fs-btn" title="沉浸模式 / 双击 canvas 复位视角">⛶</button>
         <button id="pc-mode-btn" title="室内 / 环绕 切换" style="display:none">🌍 环绕</button>
+        <button id="pc-walk-btn" title="indoor 模式步行(沿视线匀速前进)">🚶 走</button>
       </div>
     </div>
 
@@ -276,6 +288,27 @@
       <div class="meta">用相机扫 ⑤ 生成的二维码,扫到 <code>roam://scene/xxx</code> 直接跳同 App 进场景。绕开微信扫码限制最快路径。需要 CAMERA 权限,首次使用会授权弹窗。</div>
       <button id="scan-btn">📷 启动扫码</button>
       <div id="scan-result" style="display:none;margin-top:10px;padding:10px 12px;font-family:ui-monospace,monospace;font-size:11px;color:rgba(255,255,255,0.7);word-break:break-all;background:rgba(6,182,212,0.08);border:1px solid rgba(6,182,212,0.20);border-radius:8px;"></div>
+    </div>
+
+    <!-- M5-2 · ⑨ 设置 -->
+    <div class="card">
+      <h2>⑨ M5 · 设置 <span class="status status-ready">localStorage</span></h2>
+      <div class="meta">这些开关持久化在 localStorage,下次启动生效。</div>
+      <div style="display:flex;flex-direction:column;gap:10px;margin-top:6px;">
+        <label style="display:flex;justify-content:space-between;align-items:center;font-size:12px;color:rgba(255,255,255,0.8);">
+          <span>自动旋转(无操作 3s 后)</span>
+          <input id="set-auto-rotate" type="checkbox" style="transform:scale(1.4);accent-color:#8B5CF6;">
+        </label>
+        <label style="display:flex;justify-content:space-between;align-items:center;font-size:12px;color:rgba(255,255,255,0.8);">
+          <span>无操作恢复时长 (s)</span>
+          <input id="set-resume-ms" type="number" min="1" max="60" step="1" value="3" style="width:60px;background:rgba(255,255,255,0.10);color:#F8FAFC;border:1px solid rgba(255,255,255,0.15);border-radius:6px;padding:4px 8px;font-size:12px;text-align:right;">
+        </label>
+        <label style="display:flex;justify-content:space-between;align-items:center;font-size:12px;color:rgba(255,255,255,0.8);">
+          <span>自动转速度 (rad/s)</span>
+          <input id="set-auto-speed" type="number" min="0.01" max="2" step="0.05" value="0.25" style="width:60px;background:rgba(255,255,255,0.10);color:#F8FAFC;border:1px solid rgba(255,255,255,0.15);border-radius:6px;padding:4px 8px;font-size:12px;text-align:right;">
+        </label>
+        <button id="set-reset-btn" style="background:rgba(239,68,68,0.20);border:1px solid rgba(239,68,68,0.30);color:#F87171;box-shadow:none;">⚠️ 清空所有 localStorage(缩略图 / 历史 / 设置)</button>
+      </div>
     </div>
 
     <!-- WebView 环境信息 -->
@@ -630,6 +663,52 @@
     }
     document.getElementById('mng-refresh-btn').addEventListener('click', refreshSceneManager);
     setTimeout(refreshSceneManager, 200);
+
+    // M5-2 · ⑨ 设置面板绑定
+    (function initSettingsUI() {
+      const ar = document.getElementById('set-auto-rotate');
+      const rm = document.getElementById('set-resume-ms');
+      const sp = document.getElementById('set-auto-speed');
+      const reset = document.getElementById('set-reset-btn');
+      if (!ar) return;
+      ar.checked = !!userSettings.autoRotate;
+      rm.value = userSettings.resumeMs || 3;
+      sp.value = userSettings.autoSpeed || 0.25;
+      function commit() {
+        userSettings = {
+          autoRotate: ar.checked,
+          resumeMs: Math.max(1, Math.min(60, parseInt(rm.value, 10) || 3)),
+          autoSpeed: Math.max(0.01, Math.min(2, parseFloat(sp.value) || 0.25)),
+        };
+        saveSettings(userSettings);
+        // 实时应用到 currentCam(无需切场景)
+        if (currentCam) {
+          currentCam.autoRotate = userSettings.autoRotate;
+          currentCam.AUTO_RESUME_MS = userSettings.resumeMs * 1000;
+          currentCam.AUTO_SPEED = currentCam.mode === 'indoor'
+            ? userSettings.autoSpeed * 0.4
+            : userSettings.autoSpeed;
+        }
+        if (window.RoamBridge && window.RoamBridge.toast) window.RoamBridge.toast('设置已保存');
+      }
+      ar.addEventListener('change', commit);
+      rm.addEventListener('change', commit);
+      sp.addEventListener('change', commit);
+      reset.addEventListener('click', () => {
+        if (!confirm('清空所有 localStorage(缩略图 / 历史 / 设置)?')) return;
+        try {
+          // 只清 roam: 前缀的 key,不动其他
+          const ks = [];
+          for (let i = 0; i < localStorage.length; i++) {
+            const k = localStorage.key(i);
+            if (k && k.startsWith('roam:')) ks.push(k);
+          }
+          ks.forEach(k => localStorage.removeItem(k));
+          if (window.RoamBridge && window.RoamBridge.toast) window.RoamBridge.toast('已清空 ' + ks.length + ' 项');
+          setTimeout(() => location.reload(), 500);
+        } catch (e) { alert('清空失败: ' + e.message); }
+      });
+    })();
 
     // ====== PlayCanvas 加载状态处理(同步检查,不用 onload)======
     function onPcLoaded() {
@@ -1006,6 +1085,18 @@
     }
 
     // ====== 相机模式管理(orbit 环绕物体 / indoor 站中心 360°)======
+    // M5-2 · 全局设置(localStorage)
+    const SETTINGS_DEFAULTS = { autoRotate: true, resumeMs: 3, autoSpeed: 0.25 };
+    function loadSettings() {
+      try {
+        const raw = localStorage.getItem('roam:settings');
+        return Object.assign({}, SETTINGS_DEFAULTS, raw ? JSON.parse(raw) : {});
+      } catch (e) { return Object.assign({}, SETTINGS_DEFAULTS); }
+    }
+    function saveSettings(s) {
+      try { localStorage.setItem('roam:settings', JSON.stringify(s)); } catch (e) {}
+    }
+    let userSettings = loadSettings();
     // 全局 cam 状态 — 由 setupCameraOrbitOrIndoor 重建,updateCameraEachFrame 每帧读
     let currentCam = null;
     function setupCameraOrbitOrIndoor(cameraEntity, canvas, center, radius, mode, sceneName, halfExtentsY) {
@@ -1013,15 +1104,19 @@
       const cam = {
         mode: mode,
         center: center.clone(),
+        initialCenter: center.clone(),  // M5-1 walk reset 用
         radius: radius,
         initialRadius: radius,
         yaw: 0,
         pitch: mode === 'indoor' ? 0 : -0.2,
-        autoRotate: true,
+        autoRotate: userSettings.autoRotate,
         lastInteractMs: 0,
-        AUTO_RESUME_MS: 3000,
-        AUTO_SPEED: mode === 'indoor' ? 0.10 : 0.25,
+        AUTO_RESUME_MS: (userSettings.resumeMs || 3) * 1000,
+        AUTO_SPEED: mode === 'indoor' ? userSettings.autoSpeed * 0.4 : userSettings.autoSpeed,
         cameraEntity: cameraEntity,
+        // M5-1 · walk 状态(indoor 模式独享)
+        walking: false,
+        walkSpeed: 0.6,  // m/s
       };
       currentCam = cam;
       attachOrbitTouch(canvas, cam, radius);
@@ -1030,6 +1125,13 @@
       if (mbtn) {
         mbtn.style.display = 'block';
         mbtn.textContent = mode === 'indoor' ? '🏠 室内(切环绕)' : '🌍 环绕(切室内)';
+      }
+      // M5-1 walk 按钮只在 indoor 显示
+      const wbtn = document.getElementById('pc-walk-btn');
+      if (wbtn) {
+        wbtn.style.display = mode === 'indoor' ? 'block' : 'none';
+        wbtn.classList.remove('active');
+        wbtn.textContent = '🚶 走';
       }
     }
     function updateCameraEachFrame(cameraEntity, dt) {
@@ -1042,7 +1144,13 @@
       const cp = Math.cos(c.pitch), sp = Math.sin(c.pitch);
       const cy = Math.cos(c.yaw), sy = Math.sin(c.yaw);
       if (c.mode === 'indoor') {
-        // 相机在中心,改变 lookAt 方向(球面方向向量 → 中心 + 方向 远点)
+        // M5-1 walk:沿 lookAt 方向匀速前进(forward = (cp*cy, sp, cp*sy) 单位向量)
+        if (c.walking) {
+          const f = c.walkSpeed * dt;
+          c.center.x += cp * cy * f;
+          c.center.y += sp * f;
+          c.center.z += cp * sy * f;
+        }
         cameraEntity.setPosition(c.center.x, c.center.y, c.center.z);
         const dir = new pc.Vec3(cp * cy, sp, cp * sy);
         cameraEntity.lookAt(c.center.x + dir.x, c.center.y + dir.y, c.center.z + dir.z);
@@ -1106,6 +1214,13 @@
             cam.yaw = INITIAL.yaw;
             cam.pitch = INITIAL.pitch;
             cam.radius = INITIAL.radius;
+            // M5-1 walk:复位时停步 + 回原点
+            if (cam.walking) {
+              cam.walking = false;
+              const wbtn = document.getElementById('pc-walk-btn');
+              if (wbtn) { wbtn.classList.remove('active'); wbtn.textContent = '🚶 走'; }
+            }
+            if (cam.initialCenter) cam.center.copy(cam.initialCenter);
             // FOV 复位到 PlayCanvas 默认 45
             if (cam.mode === 'indoor' && cam.cameraEntity && cam.cameraEntity.camera) {
               cam.fov = 45;
@@ -1460,6 +1575,19 @@
         recStopBtn.disabled = false;
         recPauseBtn.disabled = false;
         recPauseBtn.textContent = '⏸ 暂停';
+        // M5-4 · MediaSession 通知栏(部分 WebView 支持,失败 silent)
+        try {
+          if ('mediaSession' in navigator) {
+            navigator.mediaSession.metadata = new MediaMetadata({
+              title: 'Roam 录制中',
+              artist: '场景: ' + (currentSceneTag || 'unknown'),
+              album: 'Roam · 即境',
+            });
+            navigator.mediaSession.playbackState = 'playing';
+            navigator.mediaSession.setActionHandler('pause', () => recPauseBtn.click());
+            navigator.mediaSession.setActionHandler('stop', () => recStopBtn.click());
+          }
+        } catch (e) { /* WebView 不支持 MediaSession 时 silent */ }
         // 录中锁场景按钮(防误触切场景导致视频内容跳变)
         ['pc-start','pc-start-apt','pc-start-guitar','pc-start-spz','pc-start-skull','pc-start-biker']
           .forEach(id => { const b = document.getElementById(id); if (b) b.disabled = true; });
@@ -1525,6 +1653,13 @@
       recStartBtn.disabled = false;
       recPauseBtn.disabled = true;
       recPauseBtn.textContent = '⏸ 暂停';
+      // M5-4 · 清 MediaSession
+      try {
+        if ('mediaSession' in navigator) {
+          navigator.mediaSession.playbackState = 'none';
+          navigator.mediaSession.metadata = null;
+        }
+      } catch (e) {}
       // 解锁场景按钮
       ['pc-start','pc-start-apt','pc-start-guitar','pc-start-spz','pc-start-skull','pc-start-biker']
         .forEach(id => { const b = document.getElementById(id); if (b) b.disabled = false; });
@@ -1730,6 +1865,18 @@
     // 相机模式 toggle 按钮
     const modeBtn = document.getElementById('pc-mode-btn');
     if (modeBtn) modeBtn.addEventListener('click', (e) => { e.stopPropagation(); toggleCameraMode(); });
+    // M5-1 步行 toggle(indoor 模式)
+    const walkBtn = document.getElementById('pc-walk-btn');
+    if (walkBtn) walkBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (!currentCam || currentCam.mode !== 'indoor') return;
+      currentCam.walking = !currentCam.walking;
+      walkBtn.classList.toggle('active', currentCam.walking);
+      walkBtn.textContent = currentCam.walking ? '🚶 走中…' : '🚶 走';
+      if (window.RoamBridge && window.RoamBridge.toast) {
+        window.RoamBridge.toast(currentCam.walking ? '步行模式 — 沿视线前进' : '步行停');
+      }
+    });
 
     // 沉浸模式 toggle(右上 ⛶ 按钮)
     const fsBtn = document.getElementById('pc-fs-btn');

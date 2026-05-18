@@ -262,6 +262,14 @@
       <button id="snap-btn" disabled>📸 截屏</button>
     </div>
 
+    <!-- M4-6 · ⑧ 场景管理(user-scenes 列表 + 删除)-->
+    <div class="card">
+      <h2>⑧ M4 · 场景管理(我的 .ply / .sog / .spz) <span class="status status-ready" id="mng-badge">就绪</span></h2>
+      <div class="meta">SAF 选过的文件持久化在 internal storage(user-scenes/)。这里可以删除清理,内置 6 场景不受影响。</div>
+      <button id="mng-refresh-btn" style="background:rgba(255,255,255,0.08);box-shadow:none;border:1px solid rgba(255,255,255,0.12);">刷新列表</button>
+      <div id="mng-list" style="margin-top:10px;font-size:11px;font-family:ui-monospace,monospace;color:rgba(255,255,255,0.7);"></div>
+    </div>
+
     <!-- Test 6: B 路径 Roam 内置扫码 -->
     <div class="card">
       <h2>⑥ B · Roam 内扫码进场景 <span class="status status-ready" id="scan-badge">就绪</span></h2>
@@ -535,6 +543,93 @@
     }
     renderHistory();  // 启动时如果有历史,显示
     setTimeout(loadUserScenesIntoMenu, 100);  // M4-3 装载已持久化的用户场景
+
+    // M4-6 · 场景管理 ⑧ 卡片(渲染 user-scenes + 删除)
+    function refreshSceneManager() {
+      const list = document.getElementById('mng-list');
+      const badge = document.getElementById('mng-badge');
+      if (!list) return;
+      while (list.firstChild) list.removeChild(list.firstChild);
+      const hasBridge = typeof window.RoamBridge !== 'undefined';
+      if (!hasBridge || !window.RoamBridge.listUserScenes) {
+        badge.textContent = '✗ 需 Android App';
+        return;
+      }
+      let items;
+      try { items = JSON.parse(window.RoamBridge.listUserScenes() || '[]'); } catch (e) { items = []; }
+      if (!items.length) {
+        const empty = document.createElement('div');
+        empty.style.color = 'rgba(255,255,255,0.4)';
+        empty.textContent = '(还没加过用户场景。去 ③ 选个 .ply / .sog / .spz)';
+        list.appendChild(empty);
+        badge.textContent = '0 项';
+        return;
+      }
+      badge.textContent = items.length + ' 项';
+      let totalMB = 0;
+      items.forEach((it) => {
+        totalMB += it.size / 1024 / 1024;
+        const row = document.createElement('div');
+        row.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.06);gap:6px;';
+        const info = document.createElement('div');
+        info.style.cssText = 'flex:1;min-width:0;';
+        const name = document.createElement('div');
+        name.style.cssText = 'color:#F8FAFC;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+        name.textContent = '📁 ' + it.name;
+        const meta = document.createElement('div');
+        meta.style.cssText = 'font-size:10px;color:rgba(255,255,255,0.4);';
+        meta.textContent = (it.size / 1024 / 1024).toFixed(2) + ' MB · ' + new Date(it.mtime).toLocaleDateString();
+        info.appendChild(name); info.appendChild(meta);
+        const actions = document.createElement('div');
+        actions.style.cssText = 'display:flex;gap:6px;flex-shrink:0;';
+        const loadBtn = document.createElement('button');
+        loadBtn.textContent = '▶';
+        loadBtn.style.cssText = 'width:auto;padding:6px 10px;font-size:12px;background:rgba(139,92,246,0.20);border:1px solid rgba(139,92,246,0.30);box-shadow:none;margin-top:0;color:#DDD6FE;';
+        loadBtn.addEventListener('click', () => {
+          // 找对应 SCENES.id(user-scene id 规则:'user-' + sanitize 名)
+          const id = 'user-' + it.name.replace(/[^a-zA-Z0-9]/g, '');
+          if (sceneStarters[id]) sceneStarters[id]();
+          else alert('未注册,先刷新菜单');
+        });
+        const delBtn = document.createElement('button');
+        delBtn.textContent = '🗑';
+        delBtn.style.cssText = 'width:auto;padding:6px 10px;font-size:12px;background:rgba(239,68,68,0.20);border:1px solid rgba(239,68,68,0.30);box-shadow:none;margin-top:0;color:#F87171;';
+        delBtn.addEventListener('click', () => {
+          if (!confirm('删除 ' + it.name + ' ?')) return;
+          const ok = window.RoamBridge.deleteUserScene(it.path);
+          if (ok) {
+            if (window.RoamBridge.toast) window.RoamBridge.toast('已删除');
+            // 从 SCENES 移除 + 重建按钮
+            const id = 'user-' + it.name.replace(/[^a-zA-Z0-9]/g, '');
+            const idx = SCENES.findIndex(s => s.id === id);
+            if (idx >= 0) {
+              SCENES.splice(idx, 1);
+              delete sceneStarters[id];
+              buildSceneButtons();
+              // 重新 enable(因为 buildSceneButtons 让按钮 disabled)
+              SCENES.forEach((s) => {
+                const b = document.getElementById('pc-start-' + s.id);
+                if (b) b.disabled = false;
+              });
+            }
+            refreshSceneManager();
+          } else {
+            alert('删除失败');
+          }
+        });
+        actions.appendChild(loadBtn);
+        actions.appendChild(delBtn);
+        row.appendChild(info);
+        row.appendChild(actions);
+        list.appendChild(row);
+      });
+      const total = document.createElement('div');
+      total.style.cssText = 'margin-top:8px;font-size:10px;color:rgba(255,255,255,0.4);text-align:right;';
+      total.textContent = '共 ' + items.length + ' 项 · ' + totalMB.toFixed(1) + ' MB';
+      list.appendChild(total);
+    }
+    document.getElementById('mng-refresh-btn').addEventListener('click', refreshSceneManager);
+    setTimeout(refreshSceneManager, 200);
 
     // ====== PlayCanvas 加载状态处理(同步检查,不用 onload)======
     function onPcLoaded() {

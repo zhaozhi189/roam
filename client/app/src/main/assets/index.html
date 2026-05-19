@@ -239,6 +239,11 @@
         <button id="rec-pause-btn" disabled style="font-size:11px;padding:9px 8px;background:rgba(245,158,11,0.85);">⏸ 暂停</button>
         <button id="rec-stop-btn" disabled style="font-size:11px;padding:9px 8px;background:linear-gradient(135deg,#EF4444,#DC2626);box-shadow:0 6px 16px rgba(239,68,68,0.25);">⏹ 停止</button>
       </div>
+      <!-- M6-1 · 音频录入开关 -->
+      <label style="display:flex;align-items:center;gap:8px;margin-top:8px;font-size:11px;color:rgba(255,255,255,0.7);cursor:pointer;">
+        <input id="rec-audio" type="checkbox" style="transform:scale(1.3);accent-color:#8B5CF6;">
+        🎤 录入麦克风(首次需授权)— 关闭则只录画面
+      </label>
       <div id="rec-timer" style="display:none;text-align:center;margin-top:8px;font-family:ui-monospace,monospace;color:#EF4444;font-size:13px;">00:00 / 01:00</div>
       <button id="rec-list-btn" style="margin-top:8px;background:rgba(255,255,255,0.08);box-shadow:none;border:1px solid rgba(255,255,255,0.12);">刷新本地视频列表</button>
       <div id="rec-list" style="margin-top:10px;font-size:11px;font-family:ui-monospace,monospace;color:rgba(255,255,255,0.7);"></div>
@@ -288,6 +293,36 @@
       <div class="meta">用相机扫 ⑤ 生成的二维码,扫到 <code>roam://scene/xxx</code> 直接跳同 App 进场景。绕开微信扫码限制最快路径。需要 CAMERA 权限,首次使用会授权弹窗。</div>
       <button id="scan-btn">📷 启动扫码</button>
       <div id="scan-result" style="display:none;margin-top:10px;padding:10px 12px;font-family:ui-monospace,monospace;font-size:11px;color:rgba(255,255,255,0.7);word-break:break-all;background:rgba(6,182,212,0.08);border:1px solid rgba(6,182,212,0.20);border-radius:8px;"></div>
+    </div>
+
+    <!-- M6-2 · ⑩ 渲染参数 -->
+    <div class="card">
+      <h2>⑩ M6 · 渲染参数 <span class="status status-ready">实时</span></h2>
+      <div class="meta">实时调整 canvas 渲染设置(只影响当前场景,不持久化)</div>
+      <div style="display:flex;flex-direction:column;gap:10px;margin-top:6px;">
+        <label style="display:flex;justify-content:space-between;align-items:center;font-size:12px;color:rgba(255,255,255,0.8);gap:10px;">
+          <span style="flex-shrink:0;">渲染分辨率</span>
+          <input id="rp-resolution" type="range" min="0.3" max="1.5" step="0.05" value="1" style="flex:1;accent-color:#8B5CF6;">
+          <span id="rp-resolution-val" style="min-width:40px;text-align:right;font-family:ui-monospace,monospace;font-size:11px;">100%</span>
+        </label>
+        <label style="display:flex;justify-content:space-between;align-items:center;font-size:12px;color:rgba(255,255,255,0.8);gap:10px;">
+          <span>背景色</span>
+          <select id="rp-bg" style="background:rgba(255,255,255,0.10);color:#F8FAFC;border:1px solid rgba(255,255,255,0.15);border-radius:6px;padding:4px 8px;font-size:12px;">
+            <option value="dark-blue">深紫蓝(默认)</option>
+            <option value="black">纯黑</option>
+            <option value="white">纯白</option>
+            <option value="transparent">透明</option>
+          </select>
+        </label>
+      </div>
+    </div>
+
+    <!-- M6-3 · WebXR / AR 探测 -->
+    <div class="card">
+      <h2>🥽 M6 · AR / WebXR 探测 <span class="status status-pending" id="ar-badge">检测中…</span></h2>
+      <div class="meta">探测 WebXR immersive-ar 支持。Magic7 Pro WebView 实测多半不支持(WebXR 在 Chrome 桌面强 / Android Chrome 弱)。真接入 M7 评估。</div>
+      <div id="ar-info" style="font-size:11px;font-family:ui-monospace,monospace;color:rgba(255,255,255,0.7);padding:8px 10px;background:rgba(0,0,0,0.20);border-radius:6px;">检测中…</div>
+      <button id="ar-test-btn" disabled style="margin-top:8px;">🥽 启动 AR 试试(可能不支持)</button>
     </div>
 
     <!-- M5-2 · ⑨ 设置 -->
@@ -663,6 +698,80 @@
     }
     document.getElementById('mng-refresh-btn').addEventListener('click', refreshSceneManager);
     setTimeout(refreshSceneManager, 200);
+
+    // M6-2 · ⑩ 渲染参数(实时改 canvas resolution + 背景色)
+    (function initRenderParams() {
+      const res = document.getElementById('rp-resolution');
+      const resVal = document.getElementById('rp-resolution-val');
+      const bg = document.getElementById('rp-bg');
+      if (!res || !bg) return;
+      const applyRes = () => {
+        const scale = parseFloat(res.value);
+        resVal.textContent = Math.round(scale * 100) + '%';
+        if (pcApp && pcApp.graphicsDevice) {
+          const canvas = document.getElementById('pc-canvas');
+          const w = Math.max(64, Math.floor(canvas.clientWidth * scale));
+          const h = Math.max(64, Math.floor(canvas.clientHeight * scale));
+          try {
+            pcApp.setCanvasResolution(pc.RESOLUTION_FIXED, w, h);
+          } catch (e) { console.warn('[Roam] setCanvasResolution err:', e); }
+        }
+      };
+      const applyBg = () => {
+        if (!pcApp) return;
+        const camEnt = pcApp.root.findByName('camera');
+        if (!camEnt || !camEnt.camera) return;
+        const map = {
+          'dark-blue': new pc.Color(0.04, 0.06, 0.12, 1),
+          'black': new pc.Color(0, 0, 0, 1),
+          'white': new pc.Color(1, 1, 1, 1),
+          'transparent': new pc.Color(0, 0, 0, 0),
+        };
+        camEnt.camera.clearColor = map[bg.value] || map['dark-blue'];
+      };
+      res.addEventListener('input', applyRes);
+      bg.addEventListener('change', applyBg);
+    })();
+
+    // M6-3 · WebXR / AR 探测
+    (async function detectAR() {
+      const badge = document.getElementById('ar-badge');
+      const info = document.getElementById('ar-info');
+      const btn = document.getElementById('ar-test-btn');
+      if (!info) return;
+      const lines = [];
+      const hasXr = 'xr' in navigator;
+      lines.push('navigator.xr: ' + (hasXr ? '✓ 存在' : '✗ 缺失'));
+      if (!hasXr) {
+        info.textContent = lines.join('\n');
+        badge.textContent = '✗ 不支持'; badge.className = 'status status-error';
+        return;
+      }
+      try {
+        const arOk = await navigator.xr.isSessionSupported('immersive-ar');
+        const vrOk = await navigator.xr.isSessionSupported('immersive-vr');
+        lines.push('immersive-ar: ' + (arOk ? '✓' : '✗'));
+        lines.push('immersive-vr: ' + (vrOk ? '✓' : '✗'));
+        info.textContent = lines.join('\n');
+        if (arOk) {
+          badge.textContent = '✓ AR 支持'; badge.className = 'status status-ready';
+          btn.disabled = false;
+          btn.addEventListener('click', async () => {
+            try {
+              const session = await navigator.xr.requestSession('immersive-ar');
+              if (window.RoamBridge?.toast) window.RoamBridge.toast('AR 会话已建,但完整集成留 M7');
+              setTimeout(() => session.end(), 3000);
+            } catch (e) { alert('AR 启动失败: ' + e.message); }
+          });
+        } else {
+          badge.textContent = '✗ AR 不支持'; badge.className = 'status status-error';
+        }
+      } catch (e) {
+        lines.push('error: ' + e.message);
+        info.textContent = lines.join('\n');
+        badge.textContent = '✗ ' + e.message; badge.className = 'status status-error';
+      }
+    })();
 
     // M5-2 · ⑨ 设置面板绑定
     (function initSettingsUI() {
@@ -1428,6 +1537,8 @@
     let mp4Muxer = null;
     let recCompositeStop = true;  // M3-4 水印 rAF 循环 stop flag
     let recPaused = false;        // M3-5 暂停标志(暂停期间不 encode,但 frame 继续读 close)
+    // M6-1 · 音频录入
+    let audioEncoder = null, audioStream = null, audioReader = null;
     let recStartTime = 0;
     let recFrameCount = 0;
     let recTimerInterval = null;
@@ -1495,12 +1606,59 @@
         }
         console.log('[Roam] WebCodecs 录制尺寸:', w, 'x', h, 'fps=', REC_FPS, 'bitrate=', REC_BITRATE);
 
-        // mp4 muxer
-        mp4Muxer = new Mp4Muxer.Muxer({
+        // M6-1 · 音频准备(getUserMedia 在 muxer 之前,因为 muxer 要 audio config)
+        const wantAudio = document.getElementById('rec-audio')?.checked;
+        let muxerAudioCfg = null;
+        if (wantAudio) {
+          try {
+            audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            const aTrack = audioStream.getAudioTracks()[0];
+            const aSet = aTrack.getSettings();
+            const sr = aSet.sampleRate || 48000;
+            const nc = aSet.channelCount || 1;
+            muxerAudioCfg = { codec: 'aac', sampleRate: sr, numberOfChannels: nc };
+            console.log('[Roam] 音频:', sr, 'Hz x', nc, 'ch');
+          } catch (e) {
+            console.warn('[Roam] 麦克风授权失败,无音频继续:', e);
+            if (window.RoamBridge?.toast) window.RoamBridge.toast('麦克风未授权,无音频录');
+          }
+        }
+
+        // mp4 muxer(可选 audio track)
+        const muxerCfg = {
           target: new Mp4Muxer.ArrayBufferTarget(),
           video: { codec: 'avc', width: w, height: h },
           fastStart: 'in-memory',
-        });
+        };
+        if (muxerAudioCfg) muxerCfg.audio = muxerAudioCfg;
+        mp4Muxer = new Mp4Muxer.Muxer(muxerCfg);
+
+        // 音频 encoder + 帧读
+        if (muxerAudioCfg) {
+          audioEncoder = new AudioEncoder({
+            output: (chunk, meta) => mp4Muxer.addAudioChunk(chunk, meta),
+            error: (e) => console.error('[Roam] AudioEncoder error:', e),
+          });
+          audioEncoder.configure({
+            codec: 'mp4a.40.2',  // AAC-LC
+            sampleRate: muxerAudioCfg.sampleRate,
+            numberOfChannels: muxerAudioCfg.numberOfChannels,
+            bitrate: 64000,
+          });
+          const aProc = new MediaStreamTrackProcessor({ track: audioStream.getAudioTracks()[0] });
+          audioReader = aProc.readable.getReader();
+          (async function readAudio() {
+            try {
+              while (recRecording) {
+                const r = await audioReader.read();
+                if (r.done || !r.value) break;
+                if (recPaused) { r.value.close(); continue; }
+                try { audioEncoder.encode(r.value); } catch (e) { console.warn('[Roam] audio enc skip:', e.message); }
+                r.value.close();
+              }
+            } catch (e) { console.error('[Roam] readAudio error:', e); }
+          })();
+        }
 
         // VideoEncoder(系统硬件 H.264)
         videoEncoder = new VideoEncoder({
@@ -1666,16 +1824,24 @@
       recStopBtn.disabled = true;
       recBadge.textContent = '处理中…';
       recBadge.className = 'status status-pending';
-      // 关掉 MediaStream pipeline + 水印合成 loop
+      // 关掉 MediaStream pipeline + 水印合成 loop + 音频
       recCompositeStop = true;
       try {
         if (recFrameReader) await recFrameReader.cancel();
         if (recStream) recStream.getTracks().forEach(t => t.stop());
+        // M6-1 音频清理
+        if (audioReader) { try { await audioReader.cancel(); } catch (e) {} audioReader = null; }
+        if (audioStream) { audioStream.getTracks().forEach(t => t.stop()); audioStream = null; }
       } catch (e) { /* ignore */ }
 
       try {
         await videoEncoder.flush();
         videoEncoder.close();
+        // M6-1 · flush + close audio encoder
+        if (audioEncoder) {
+          try { await audioEncoder.flush(); audioEncoder.close(); } catch (e) { console.warn('audio flush err', e); }
+          audioEncoder = null;
+        }
         mp4Muxer.finalize();
         const buf = mp4Muxer.target.buffer;
         const elapsed = Math.floor((performance.now() - recStartTime) / 1000);

@@ -221,6 +221,16 @@ fun RoamWebView(
                     ): WebResourceResponse? = assetLoader.shouldInterceptRequest(request.url)
                 }
                 webChromeClient = object : WebChromeClient() {
+                    // M6-1 · WebView 内 getUserMedia({audio:true}) 需要 Native 授权 mic
+                    override fun onPermissionRequest(request: android.webkit.PermissionRequest?) {
+                        if (request == null) return
+                        val wanted = request.resources
+                        // 只授权 mic(VIDEO_CAPTURE / MIDI 不开)
+                        val granted = wanted.filter {
+                            it == android.webkit.PermissionRequest.RESOURCE_AUDIO_CAPTURE
+                        }.toTypedArray()
+                        if (granted.isNotEmpty()) request.grant(granted) else request.deny()
+                    }
                     // 把 JS console.log/warn/error 桥到 Android logcat,tag = Roam/WebView
                     override fun onConsoleMessage(msg: ConsoleMessage): Boolean {
                         val level = when (msg.messageLevel()) {

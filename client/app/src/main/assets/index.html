@@ -1361,14 +1361,13 @@
       currentCam.AUTO_SPEED = newMode === 'indoor' ? 0.10 : 0.25;
       const mbtn = document.getElementById('pc-mode-btn');
       if (mbtn) mbtn.textContent = newMode === 'indoor' ? '🏠 室内(切环绕)' : '🌍 环绕(切室内)';
-      const t = window.RoamBridge && window.RoamBridge.toast;
-      if (t) {
-        // 物体场景(small radius)切 indoor 可能没 splat 围绕,提示
-        if (newMode === 'indoor' && currentCam.initialRadius < 5) {
-          t('⚠️ 物体场景切室内可能看不到 splat;建议切回环绕');
-        } else {
-          t('相机模式: ' + newMode);
-        }
+      // Android WebView 不能 cache JS bridge method 引用(丢 binding 报 non-injected object)
+      // 必须每次 window.RoamBridge.toast(...) 直接调用
+      if (window.RoamBridge && window.RoamBridge.toast) {
+        const msg = (newMode === 'indoor' && currentCam.initialRadius < 5)
+          ? '⚠️ 物体场景切室内可能看不到 splat;建议切回环绕'
+          : '相机模式: ' + newMode;
+        window.RoamBridge.toast(msg);
       }
     }
 

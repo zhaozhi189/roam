@@ -392,6 +392,37 @@
   <script src="vendor/spz-loader-playcanvas.umd.cjs"></script>
 
   <script>
+    // M7 诊断:全局 error 捕获,显示到 ② badge + Toast(看到说明 inline script 报错)
+    window.addEventListener('error', (e) => {
+      const detail = (e.message || '') + ' @ line ' + (e.lineno || '?') + ' col ' + (e.colno || '?');
+      const b = document.getElementById('pc-badge');
+      if (b) {
+        b.textContent = '💥 line ' + (e.lineno || '?');
+        b.className = 'status status-error';
+      }
+      // 把错误显示到主 status(canvas 上),不挡在小 badge
+      const status = document.getElementById('pc-status');
+      if (status) {
+        status.style.cssText = ';color:#F87171;background:rgba(239,68,68,0.20);padding:12px;font-family:ui-monospace,monospace;font-size:10px;line-height:1.4;white-space:pre-wrap;text-align:left;display:flex;align-items:flex-start;justify-content:flex-start;overflow:auto;';
+        status.textContent = '❌ JS Error\n' + detail + '\n\n' + ((e.error && e.error.stack) || '(无 stack)').split('\n').slice(0, 8).join('\n');
+      }
+      if (window.RoamBridge && window.RoamBridge.toast) window.RoamBridge.toast(detail.slice(0, 80));
+    });
+    // M5-2 / M7 · 全局设置(localStorage)— 提到顶部,initSettingsUI / setupCameraOrbitOrIndoor 都依赖
+    const SETTINGS_DEFAULTS = { autoRotate: true, resumeMs: 3, autoSpeed: 0.25, showStats: false, webgpu: false };
+    function loadSettings() {
+      try {
+        const raw = localStorage.getItem('roam:settings');
+        return Object.assign({}, SETTINGS_DEFAULTS, raw ? JSON.parse(raw) : {});
+      } catch (e) { return Object.assign({}, SETTINGS_DEFAULTS); }
+    }
+    function saveSettings(s) {
+      try { localStorage.setItem('roam:settings', JSON.stringify(s)); } catch (e) {}
+    }
+    let userSettings = loadSettings();
+    let pcApp = null;          // 早 init 防 TDZ
+    let currentCam = null;     // 同上
+
     // 同步检查 PlayCanvas 是否成功暴露 pc 全局(UMD 包装会挂到 window.pc)
     var __PC_LOADED__ = (typeof pc !== 'undefined' && pc.version);
     console.log('[Roam] PlayCanvas inline check, pc=', typeof pc, ' version=', __PC_LOADED__ || '(not loaded)');
@@ -939,7 +970,6 @@
     }
 
     // ====== 启动 PlayCanvas 立方体场景 ======
-    let pcApp = null;
     // 录屏 / 截屏文件名里嵌的场景标识(简短英文)
     let currentSceneTag = 'cube';
     function setCurrentScene(tag, displayName) {
@@ -1257,20 +1287,7 @@
     }
 
     // ====== 相机模式管理(orbit 环绕物体 / indoor 站中心 360°)======
-    // M5-2 / M7 · 全局设置(localStorage)
-    const SETTINGS_DEFAULTS = { autoRotate: true, resumeMs: 3, autoSpeed: 0.25, showStats: false, webgpu: false };
-    function loadSettings() {
-      try {
-        const raw = localStorage.getItem('roam:settings');
-        return Object.assign({}, SETTINGS_DEFAULTS, raw ? JSON.parse(raw) : {});
-      } catch (e) { return Object.assign({}, SETTINGS_DEFAULTS); }
-    }
-    function saveSettings(s) {
-      try { localStorage.setItem('roam:settings', JSON.stringify(s)); } catch (e) {}
-    }
-    let userSettings = loadSettings();
-    // 全局 cam 状态 — 由 setupCameraOrbitOrIndoor 重建,updateCameraEachFrame 每帧读
-    let currentCam = null;
+    // 全局 cam 状态(userSettings / pcApp / currentCam 都在顶部 init,防 TDZ)
     function setupCameraOrbitOrIndoor(cameraEntity, canvas, center, radius, mode, sceneName, halfExtentsY) {
       // 回到 v2 已知 work 行为:lookAt center;orbit pitch -0.2;y 偏移由 update 加 radius*0.15
       const cam = {

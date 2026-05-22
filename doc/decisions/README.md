@@ -11,9 +11,16 @@
 
 | 编号 | 标题 | 状态 | 关联开放问题 |
 |---|---|---|---|
-| ADR-001 | [用户系统选 GitHub OAuth](ADR-001-用户系统选型.md) | ✅ Accepted | Q1 |
-| ADR-002 | UI 框架选型(React / Solid / 纯 TS) | 🟡 Proposed | Q2 |
-| ADR-003 | 单场景文件大小上限 30MB | ✅ Accepted | Q7 |
+| ADR-001 | [用户系统选 GitHub OAuth](ADR-001-用户系统选型.md) | 🔄 Superseded by ADR-004 | Q1 |
+| ADR-002 | [UI 框架选型(React / Solid / 纯 TS)](ADR-002-UI框架选型.md) | 🔄 Superseded by ADR-005 | Q2 |
+| ADR-003 | [单场景文件大小上限 30MB](ADR-003-单场景文件大小上限.md) | ✅ Accepted | Q7 |
+| ADR-004 | [MVP 方向调整 - 本地优先](ADR-004-MVP-方向调整-本地优先.md) | ✅ Accepted | — |
+| ADR-005 | [应用形态 - Android WebView 套壳](ADR-005-应用形态-Android-WebView套壳.md) | ✅ Accepted | — |
+| ADR-006 | [录屏方案 - WebCodecs + mp4-muxer](ADR-006-录屏方案-WebCodecs-mp4-muxer.md) | ✅ Accepted | — |
+| ADR-007 | [WebViewAssetLoader https 虚拟域名](ADR-007-WebViewAssetLoader-https-虚拟域名.md) | ✅ Accepted | — |
+| ADR-008 | [M2 收尾 - 质量基础与端到端能力](ADR-008-M2收尾-质量基础与端到端能力.md) | ✅ Accepted | — |
+| ADR-009 | [相机 UX - orbit/indoor 双模式](ADR-009-相机%20UX-orbit-indoor-双模式.md) | ✅ Accepted | — |
+| ADR-010 | [自扫场景数据源 - Magic7 拍 + Mac Brush 训(主) + iPhone Scaniverse 备 + 公开 sample 应急](ADR-010-自扫场景数据源-Magic7拍-Mac-Brush训.md) | ✅ Accepted | — |
 
 ## 状态约定
 

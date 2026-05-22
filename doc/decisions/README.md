@@ -21,6 +21,7 @@
 | ADR-008 | [M2 收尾 - 质量基础与端到端能力](ADR-008-M2收尾-质量基础与端到端能力.md) | ✅ Accepted | — |
 | ADR-009 | [相机 UX - orbit/indoor 双模式](ADR-009-相机%20UX-orbit-indoor-双模式.md) | ✅ Accepted | — |
 | ADR-010 | [自扫场景数据源 - Magic7 拍 + Mac Brush 训(主) + iPhone Scaniverse 备 + 公开 sample 应急](ADR-010-自扫场景数据源-Magic7拍-Mac-Brush训.md) | ✅ Accepted | — |
+| ADR-011 | [AR 集成方案 - PlayCanvas WebXR(hit-test + plane + anchor + scale + reset)](ADR-011-AR集成方案-PlayCanvas-WebXR-hit-test-anchor.md) | ✅ Accepted | — |
 
 ## 状态约定
 

@@ -149,10 +149,46 @@
     // intent:// 兜底:Chrome/标准浏览器识别,自动调起 com.roam.app
     const intentLink = 'intent://scene/' + scene + '#Intent;scheme=roam;package=com.roam.app;end';
 
-    const sceneNames = { apartment: '🏠 公寓', guitar: '🎸 吉他', cube: '🎲 立方体' };
+    const sceneNames = {
+      apartment: '🏠 公寓',
+      guitar: '🎸 吉他',
+      cube: '🎲 立方体',
+      spz: '🦎 蜥蜴 (SPZ)',
+      skull: '💀 骷髅',
+      biker: '🏍 摩托手',
+      sample: '📦 样例(公开数据集 · 非自扫)',
+    };
     document.getElementById('scene-badge').textContent = '📍 ' + (sceneNames[scene] || scene);
     document.getElementById('deep-link-text').textContent = deepLink;
     document.title = 'Roam · ' + (sceneNames[scene] || scene);
+
+    // 样例场景特殊提示(ADR-010 自扫数据源,sample 是占位)
+    // 用 createElement 严谨重建,避免 innerHTML 触发 XSS 风险检查(此处内容全静态)
+    if (scene === 'sample') {
+      const noteCard = document.createElement('div');
+      noteCard.className = 'card';
+      noteCard.style.cssText = 'background:rgba(245,158,11,0.08);border-color:rgba(245,158,11,0.20);';
+      const inner = document.createElement('div');
+      inner.style.cssText = 'font-size:13px;color:#FCD34D;line-height:1.6;';
+      const head = document.createElement('div');
+      const headIcon = document.createTextNode('📦 ');
+      const headB = document.createElement('b');
+      headB.textContent = '样例数据';
+      head.appendChild(headIcon);
+      head.appendChild(headB);
+      const desc = document.createElement('div');
+      desc.textContent = '当前为公开数据集占位(吉他场景)。zhi 用 Mac Brush 训练完真自扫场景后会替换此文件。';
+      const link = document.createElement('a');
+      link.href = 'https://github.com/zhaozhi189/roam/blob/main/doc/decisions/ADR-010-%E8%87%AA%E6%89%AB%E5%9C%BA%E6%99%AF%E6%95%B0%E6%8D%AE%E6%BA%90-Magic7%E6%8B%8D-Mac-Brush%E8%AE%AD.md';
+      link.target = '_blank';
+      link.rel = 'noopener';
+      link.textContent = '查看 ADR-010 自扫数据源决策 →';
+      inner.appendChild(head);
+      inner.appendChild(desc);
+      inner.appendChild(link);
+      noteCard.appendChild(inner);
+      document.querySelector('.wrap').insertBefore(noteCard, document.querySelector('.card'));
+    }
 
     // 检测微信
     const isWechat = /micromessenger/i.test(navigator.userAgent);

@@ -298,11 +298,15 @@
       <button id="snap-btn" disabled>📸 截屏</button>
     </div>
 
-    <!-- M4-6 · ⑧ 场景管理(user-scenes 列表 + 删除)-->
+    <!-- M4-6 · ⑧ 场景管理(user-scenes 列表 + 删除 + ADR-010 拉远程 sample)-->
     <div class="card">
       <h2>⑧ M4 · 场景管理(我的 .ply / .sog / .spz) <span class="status status-ready" id="mng-badge">就绪</span></h2>
       <div class="meta">SAF 选过的文件持久化在 internal storage(user-scenes/)。这里可以删除清理,内置 6 场景不受影响。</div>
-      <button id="mng-refresh-btn" style="background:rgba(255,255,255,0.08);box-shadow:none;border:1px solid rgba(255,255,255,0.12);">刷新列表</button>
+      <div style="display:flex;gap:6px;margin-top:6px;">
+        <button id="mng-refresh-btn" style="flex:1;background:rgba(255,255,255,0.08);box-shadow:none;border:1px solid rgba(255,255,255,0.12);font-size:12px;">刷新列表</button>
+        <button id="mng-pull-sample-btn" style="flex:1;background:rgba(139,92,246,0.20);box-shadow:none;border:1px solid rgba(139,92,246,0.40);color:#C4B5FD;font-size:12px;">📦 拉远程 sample</button>
+      </div>
+      <div class="meta" style="margin-top:6px;font-size:11px;color:rgba(255,255,255,0.5);">拉 <code>zhaozhi189.github.io/roam/scenes/sample.compressed.ply</code> 入库(ADR-010 自扫数据源,占位)</div>
       <div id="mng-list" style="margin-top:10px;font-size:11px;font-family:ui-monospace,monospace;color:rgba(255,255,255,0.7);"></div>
     </div>
 
@@ -336,12 +340,28 @@
       </div>
     </div>
 
-    <!-- M6-3 · WebXR / AR 探测 -->
+    <!-- ADR-011 · 🥽 AR 全套集成(immersive-ar + hit-test + plane + anchor + scale + reset)-->
     <div class="card">
-      <h2>🥽 M6 · AR / WebXR 探测 <span class="status status-pending" id="ar-badge">检测中…</span></h2>
-      <div class="meta">探测 WebXR immersive-ar 支持。Magic7 Pro WebView 实测多半不支持(WebXR 在 Chrome 桌面强 / Android Chrome 弱)。真接入 M7 评估。</div>
+      <h2>🥽 ADR-011 · 在 AR 中查看场景 <span class="status status-pending" id="ar-badge">检测中…</span></h2>
+      <div class="meta">PlayCanvas WebXR + hit-test 平面检测 + anchor 锁定 + 双指捏合缩放 + 单指拖动调位。需 ARCore / ARKit;Magic7 Pro 无 GMS 预期不支持。</div>
       <div id="ar-info" style="font-size:11px;font-family:ui-monospace,monospace;color:rgba(255,255,255,0.7);padding:8px 10px;background:rgba(0,0,0,0.20);border-radius:6px;">检测中…</div>
-      <button id="ar-test-btn" disabled style="margin-top:8px;">🥽 启动 AR 试试(可能不支持)</button>
+      <button id="ar-start-btn" disabled style="margin-top:8px;">🥽 在 AR 中查看(需先选场景)</button>
+      <div id="ar-fallback" style="display:none;margin-top:8px;padding:10px 12px;font-size:11px;line-height:1.6;background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.20);border-radius:6px;color:#FCD34D;">
+        ⚠️ <b>当前设备不支持 AR</b><br/>
+        Magic OS 国行版无 GMS / ARCore。把 ⑤ 二维码发给朋友(Pixel / 米 / 三星等有 GMS 设备),他们在 Chrome 打开 landing 即可体验 AR。
+      </div>
+      <div class="meta" style="margin-top:6px;font-size:11px;">
+        <b>步骤</b>:① 启动 AR · ② 对准地面 / 桌面看到圆环 · ③ 单击屏幕放置 · ④ 双指捏合缩放 · ⑤ 单指拖动调位 · ⑥ ↺ 重置 / ✕ 退出
+      </div>
+    </div>
+
+    <!-- AR 模式 floating UI(全屏覆盖,显示在 canvas 之上;默认隐藏)-->
+    <div id="ar-overlay" style="display:none;position:fixed;left:0;right:0;bottom:max(env(safe-area-inset-bottom),20px);z-index:1000;pointer-events:none;text-align:center;">
+      <div style="display:inline-flex;gap:12px;background:rgba(0,0,0,0.55);backdrop-filter:blur(12px);padding:10px 14px;border-radius:999px;border:1px solid rgba(255,255,255,0.18);pointer-events:auto;">
+        <button id="ar-reset-btn" style="margin:0;padding:8px 14px;font-size:13px;background:rgba(139,92,246,0.30);border:1px solid rgba(139,92,246,0.50);color:#DDD6FE;box-shadow:none;width:auto;border-radius:999px;">↺ 重置</button>
+        <button id="ar-exit-btn" style="margin:0;padding:8px 14px;font-size:13px;background:rgba(239,68,68,0.25);border:1px solid rgba(239,68,68,0.45);color:#F87171;box-shadow:none;width:auto;border-radius:999px;">✕ 退出</button>
+      </div>
+      <div id="ar-hint" style="margin-top:10px;color:white;text-shadow:0 1px 3px rgba(0,0,0,0.8);font-size:13px;padding:0 16px;line-height:1.5;">对准地面或桌面…</div>
     </div>
 
     <!-- M5-2 · ⑨ 设置 -->
@@ -757,6 +777,59 @@
     document.getElementById('mng-refresh-btn').addEventListener('click', refreshSceneManager);
     setTimeout(refreshSceneManager, 200);
 
+    // ADR-010 · ⑧ 拉远程 sample(GitHub Pages 服务的占位 splat)
+    // 不走 SAF / 不入 user-scenes 持久化,而是注册临时 remote-sample 场景到 SCENES 数组,
+    // 利用 PlayCanvas Asset 直接 fetch https URL(WebView 已有 INTERNET 权限)。
+    // 真自扫场景训好后 zhi 覆盖 docs/scenes/sample.compressed.ply,这里自动取新文件。
+    document.getElementById('mng-pull-sample-btn').addEventListener('click', () => {
+      const REMOTE_URL = 'https://zhaozhi189.github.io/roam/scenes/sample.compressed.ply';
+      const id = 'remote-sample';
+      const badge = document.getElementById('mng-badge');
+      // 已注册过 → 直接启动(避免重复 push)
+      const existed = SCENES.find(s => s.id === id);
+      if (existed && sceneStarters[id]) {
+        if (window.RoamBridge && window.RoamBridge.toast) window.RoamBridge.toast('启动远程样例…');
+        sceneStarters[id]();
+        return;
+      }
+      // 首次拉:先 fetch HEAD 检测可达,再注册场景
+      badge.textContent = '⏳ 拉远程…';
+      fetch(REMOTE_URL, { method: 'HEAD' })
+        .then((r) => {
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          const len = r.headers.get('content-length');
+          const sizeMB = len ? (parseInt(len, 10) / 1024 / 1024).toFixed(1) : '?';
+          SCENES.push({
+            id,
+            name: '📦 远程样例 (' + sizeMB + 'MB)',
+            kind: 'gsplat',
+            url: REMOTE_URL,
+            tag: 'remote-sample',
+            mode: 'orbit',
+          });
+          buildSceneButtons();
+          // 启用所有按钮(buildSceneButtons 默认 disabled)
+          SCENES.forEach((s) => {
+            const b = document.getElementById('pc-start-' + s.id);
+            if (b) b.disabled = false;
+          });
+          badge.textContent = '✓ 已注册';
+          if (window.RoamBridge && window.RoamBridge.toast) {
+            window.RoamBridge.toast('远程样例已加入 ② 场景列表,启动中…');
+          }
+          // 自动启动
+          if (sceneStarters[id]) sceneStarters[id]();
+        })
+        .catch((e) => {
+          console.error('[Roam] 拉远程 sample 失败:', e);
+          badge.textContent = '✗ ' + e.message;
+          badge.className = 'status status-error';
+          if (window.RoamBridge && window.RoamBridge.toast) {
+            window.RoamBridge.toast('拉远程失败: ' + e.message);
+          }
+        });
+    });
+
     // M7-5 · stats overlay 内容更新(每 0.5s)
     setInterval(() => {
       if (!pcApp || !userSettings.showStats) return;
@@ -816,11 +889,33 @@
       bg.addEventListener('change', applyBg);
     })();
 
-    // M6-3 · WebXR / AR 探测
+    // ============================================================
+    // ADR-011 · WebXR AR 全套(immersive-ar + hit-test + plane + anchor + scale + reset)
+    // ============================================================
+    const arState = {
+      active: false,
+      hitTestSource: null,
+      reticle: null,            // 圆环指示器 entity
+      reticleVisible: false,
+      placedSplat: null,        // 已放置 splat 引用
+      savedSplatPose: null,     // 进 AR 前 splat transform 备份(退出还原)
+      savedClearColor: null,    // 进 AR 前相机背景色备份
+      anchor: null,             // WebXR XRAnchor(session 内)
+      touchState: null,         // 触摸手势状态
+      xrListenersBound: false,  // 防重复绑定
+    };
+
+    function arHint(text) {
+      const el = document.getElementById('ar-hint');
+      if (el) el.textContent = text;
+    }
+
+    // 探测 AR 可用性
     (async function detectAR() {
       const badge = document.getElementById('ar-badge');
       const info = document.getElementById('ar-info');
-      const btn = document.getElementById('ar-test-btn');
+      const btn = document.getElementById('ar-start-btn');
+      const fallback = document.getElementById('ar-fallback');
       if (!info) return;
       const lines = [];
       const hasXr = 'xr' in navigator;
@@ -828,33 +923,280 @@
       if (!hasXr) {
         info.textContent = lines.join('\n');
         badge.textContent = '✗ 不支持'; badge.className = 'status status-error';
+        fallback.style.display = 'block';
+        btn.dataset.unsupported = 'true';
         return;
       }
       try {
         const arOk = await navigator.xr.isSessionSupported('immersive-ar');
-        const vrOk = await navigator.xr.isSessionSupported('immersive-vr');
-        lines.push('immersive-ar: ' + (arOk ? '✓' : '✗'));
-        lines.push('immersive-vr: ' + (vrOk ? '✓' : '✗'));
+        lines.push('immersive-ar: ' + (arOk ? '✓' : '✗ (推测无 ARCore/ARKit)'));
         info.textContent = lines.join('\n');
         if (arOk) {
-          badge.textContent = '✓ AR 支持'; badge.className = 'status status-ready';
-          btn.disabled = false;
-          btn.addEventListener('click', async () => {
-            try {
-              const session = await navigator.xr.requestSession('immersive-ar');
-              if (window.RoamBridge?.toast) window.RoamBridge.toast('AR 会话已建,但完整集成留 M7');
-              setTimeout(() => session.end(), 3000);
-            } catch (e) { alert('AR 启动失败: ' + e.message); }
-          });
+          badge.textContent = '✓ AR 可用'; badge.className = 'status status-ready';
+          btn.addEventListener('click', enterAR);
         } else {
-          badge.textContent = '✗ AR 不支持'; badge.className = 'status status-error';
+          badge.textContent = '✗ 不支持'; badge.className = 'status status-error';
+          fallback.style.display = 'block';
+          btn.dataset.unsupported = 'true';
         }
       } catch (e) {
         lines.push('error: ' + e.message);
         info.textContent = lines.join('\n');
         badge.textContent = '✗ ' + e.message; badge.className = 'status status-error';
+        fallback.style.display = 'block';
+        btn.dataset.unsupported = 'true';
       }
     })();
+
+    // 场景就绪 + AR 可用 时启用启动按钮
+    setInterval(function arBtnUpdateAvail() {
+      const btn = document.getElementById('ar-start-btn');
+      if (!btn || btn.dataset.unsupported === 'true' || arState.active) return;
+      const splat = pcApp && pcApp.root && pcApp.root.findByName('splat');
+      btn.disabled = !splat;
+      btn.textContent = splat ? '🥽 在 AR 中查看' : '🥽 在 AR 中查看(需先选场景)';
+    }, 500);
+
+    // === enterAR / exitAR / resetAR ===
+    function enterAR() {
+      if (!pcApp || !currentCam) { alert('请先加载场景'); return; }
+      const splat = pcApp.root.findByName('splat');
+      if (!splat) { alert('splat 未加载'); return; }
+      if (arState.active) return;
+      // 备份 splat 当前 pose(退出 AR 还原 orbit 视图)
+      arState.savedSplatPose = {
+        pos: splat.getPosition().clone(),
+        rot: splat.getRotation().clone(),
+        scl: splat.getLocalScale().clone(),
+      };
+      // 备份相机背景色 + AR 期间设透明(让 camera feed 透过)
+      const cam = currentCam.cameraEntity && currentCam.cameraEntity.camera;
+      if (cam) {
+        arState.savedClearColor = cam.clearColor.clone();
+        cam.clearColor = new pc.Color(0, 0, 0, 0);
+      }
+      bindXRListenersOnce();
+      try {
+        pcApp.xr.start(cam, pc.XRTYPE_AR, pc.XRSPACE_LOCAL_FLOOR, {
+          optionalFeatures: ['hit-test', 'plane-detection', 'anchors', 'dom-overlay'],
+          domOverlay: { root: document.getElementById('ar-overlay') },
+        });
+      } catch (e) {
+        console.error('[AR] enter failed', e);
+        const msg = mapXRError(e);
+        alert('AR 启动失败: ' + msg);
+        // 还原
+        if (cam && arState.savedClearColor) cam.clearColor = arState.savedClearColor;
+      }
+    }
+
+    function exitAR() {
+      if (!arState.active) return;
+      try { pcApp.xr.end(); } catch (e) { console.error('[AR] end failed', e); }
+    }
+
+    function resetAR() {
+      if (!arState.active) return;
+      const splat = arState.placedSplat;
+      if (!splat) { arHint('还没放置,先单击屏幕放置场景'); return; }
+      splat.setPosition(0, 0, 0);
+      splat.setLocalScale(arState.savedSplatPose.scl);
+      arState.placedSplat = null;
+      arState.anchor = null;
+      arHint('已重置,对准平面单击重新放置');
+    }
+
+    function mapXRError(e) {
+      const name = e && e.name;
+      if (name === 'NotSupportedError') return '当前设备无 ARCore/ARKit 支持';
+      if (name === 'SecurityError') return '需要 https 环境(WebView 已是 https,理论不该出)';
+      if (name === 'InvalidStateError') return '已经有 AR session 在运行';
+      if (name === 'NotAllowedError') return '用户拒绝授权';
+      return (e && e.message) || String(e);
+    }
+    window.enterAR = enterAR;  // 暴露给 runAuto 用
+    window.exitAR = exitAR;
+    window.resetAR = resetAR;
+
+    // 绑定 XR session 生命周期事件(只绑一次,避免 pcApp 重建时累加)
+    function bindXRListenersOnce() {
+      if (arState.xrListenersBound) return;
+      arState.xrListenersBound = true;
+      pcApp.xr.on('start', onXRStart);
+      pcApp.xr.on('end', onXREnd);
+      pcApp.xr.on('error', (e) => {
+        console.error('[AR] xr error', e);
+        if (window.RoamBridge && window.RoamBridge.toast) {
+          window.RoamBridge.toast('AR 错误: ' + mapXRError(e));
+        }
+      });
+    }
+
+    function onXRStart() {
+      console.log('[AR] session started');
+      arState.active = true;
+      document.getElementById('ar-overlay').style.display = 'block';
+      document.body.classList.add('ar-mode');
+      arHint('对准地面或桌面,等待圆环出现…');
+      // 创建 reticle entity(细圆环 box 占位,真 ring mesh 需自建 vertex,先简化)
+      const reticle = new pc.Entity('ar-reticle');
+      reticle.addComponent('render', { type: 'plane' });
+      reticle.setLocalScale(0.15, 0.15, 0.15);
+      const mat = new pc.StandardMaterial();
+      mat.diffuse = new pc.Color(0.55, 0.36, 0.96); // 紫
+      mat.emissive = new pc.Color(0.55, 0.36, 0.96);
+      mat.opacity = 0.6;
+      mat.blendType = pc.BLEND_NORMAL;
+      mat.useLighting = false;
+      mat.update();
+      reticle.render.material = mat;
+      reticle.enabled = false;
+      pcApp.root.addChild(reticle);
+      arState.reticle = reticle;
+      // hit-test source(自动持续提供 viewer 视线方向命中结果)
+      pcApp.xr.hitTest.start({
+        spaceType: pc.XRSPACE_VIEWER,
+        callback: (err, source) => {
+          if (err) { console.error('[AR] hit-test start failed', err); return; }
+          arState.hitTestSource = source;
+          source.on('result', (position, rotation) => {
+            if (!arState.reticle) return;
+            arState.reticle.setPosition(position);
+            arState.reticle.setRotation(rotation);
+            arState.reticle.enabled = true;
+            arState.reticleVisible = true;
+            if (!arState.placedSplat) arHint('看到圆环了,单击屏幕放置场景');
+          });
+        },
+      });
+      // input select → 放置
+      pcApp.xr.input.on('add', onInputAdded);
+      // 触摸手势(走 dom-overlay 上的 canvas/document touch)
+      bindARTouch();
+    }
+
+    function onXREnd() {
+      console.log('[AR] session ended');
+      arState.active = false;
+      document.getElementById('ar-overlay').style.display = 'none';
+      document.body.classList.remove('ar-mode');
+      // 还原 splat pose
+      const splat = pcApp.root.findByName('splat');
+      if (splat && arState.savedSplatPose) {
+        splat.setPosition(arState.savedSplatPose.pos);
+        splat.setRotation(arState.savedSplatPose.rot);
+        splat.setLocalScale(arState.savedSplatPose.scl);
+      }
+      // 还原相机背景
+      const cam = currentCam && currentCam.cameraEntity && currentCam.cameraEntity.camera;
+      if (cam && arState.savedClearColor) cam.clearColor = arState.savedClearColor;
+      // 清 reticle / 状态
+      if (arState.reticle) {
+        arState.reticle.destroy();
+        arState.reticle = null;
+      }
+      arState.placedSplat = null;
+      arState.anchor = null;
+      arState.hitTestSource = null;
+      arState.reticleVisible = false;
+      unbindARTouch();
+      pcApp.xr.input.off('add', onInputAdded);
+    }
+
+    function onInputAdded(inputSource) {
+      inputSource.on('select', () => onARSelect());
+    }
+
+    function onARSelect() {
+      if (!arState.reticleVisible) { arHint('未找到平面,移动设备扫一下'); return; }
+      const splat = pcApp.root.findByName('splat');
+      if (!splat) return;
+      // 把 splat 摆到 reticle 位置
+      splat.setPosition(arState.reticle.getPosition());
+      splat.setRotation(arState.reticle.getRotation());
+      // 默认缩到 0.5m³ 桌面体积:用 AABB 算 scale
+      const aabb = splat.gsplat && splat.gsplat.instance && splat.gsplat.instance.meshInstance && splat.gsplat.instance.meshInstance.aabb;
+      let scl = 1;
+      if (aabb) {
+        const longest = Math.max(aabb.halfExtents.x, aabb.halfExtents.y, aabb.halfExtents.z) * 2;
+        if (longest > 0.01) scl = 0.5 / longest;
+      }
+      splat.setLocalScale(scl, scl, scl);
+      arState.placedSplat = splat;
+      // anchor(如果 session 支持)
+      if (pcApp.xr.anchors && pcApp.xr.anchors.supported) {
+        pcApp.xr.anchors.create(arState.reticle.getPosition(), arState.reticle.getRotation(), (err, anchor) => {
+          if (!err && anchor) {
+            arState.anchor = anchor;
+            console.log('[AR] anchor created');
+          }
+        });
+      }
+      arHint('已放置 · 双指捏合缩放 · 单指拖动调位');
+    }
+
+    // === 触摸手势:双指捏合缩放 + 单指拖动重 hit-test ===
+    function bindARTouch() {
+      const canvas = document.getElementById('pc-canvas');
+      if (!canvas) return;
+      arState.touchState = { mode: 'idle', startDist: 0, startScale: 1, lastTap: 0 };
+      canvas.addEventListener('touchstart', arOnTouchStart, { passive: false });
+      canvas.addEventListener('touchmove', arOnTouchMove, { passive: false });
+      canvas.addEventListener('touchend', arOnTouchEnd, { passive: false });
+    }
+    function unbindARTouch() {
+      const canvas = document.getElementById('pc-canvas');
+      if (!canvas) return;
+      canvas.removeEventListener('touchstart', arOnTouchStart);
+      canvas.removeEventListener('touchmove', arOnTouchMove);
+      canvas.removeEventListener('touchend', arOnTouchEnd);
+    }
+    function arTouchDist(touches) {
+      const dx = touches[0].clientX - touches[1].clientX;
+      const dy = touches[0].clientY - touches[1].clientY;
+      return Math.sqrt(dx * dx + dy * dy);
+    }
+    function arOnTouchStart(e) {
+      if (!arState.active) return;
+      const splat = arState.placedSplat;
+      const ts = arState.touchState;
+      if (e.touches.length === 2 && splat) {
+        e.preventDefault();
+        ts.mode = 'pinch';
+        ts.startDist = arTouchDist(e.touches);
+        ts.startScale = splat.getLocalScale().x;
+      } else if (e.touches.length === 1 && splat) {
+        // 单指拖在已放置 splat 上 → 标记 drag,等 hit-test 在 touchmove 实时更新位置
+        ts.mode = 'drag';
+      }
+    }
+    function arOnTouchMove(e) {
+      if (!arState.active) return;
+      const ts = arState.touchState;
+      const splat = arState.placedSplat;
+      if (!ts || !splat) return;
+      if (ts.mode === 'pinch' && e.touches.length === 2) {
+        e.preventDefault();
+        const d = arTouchDist(e.touches);
+        const ratio = d / Math.max(ts.startDist, 1);
+        const newScl = Math.max(0.05, Math.min(5, ts.startScale * ratio));
+        splat.setLocalScale(newScl, newScl, newScl);
+      } else if (ts.mode === 'drag' && e.touches.length === 1) {
+        // 实时跟踪 reticle 位置(hit-test 持续更新)
+        if (arState.reticleVisible && arState.reticle) {
+          splat.setPosition(arState.reticle.getPosition());
+          splat.setRotation(arState.reticle.getRotation());
+        }
+      }
+    }
+    function arOnTouchEnd(e) {
+      if (!arState.active) return;
+      if (arState.touchState) arState.touchState.mode = 'idle';
+    }
+
+    // floating UI 按钮
+    document.getElementById('ar-reset-btn').addEventListener('click', resetAR);
+    document.getElementById('ar-exit-btn').addEventListener('click', exitAR);
 
     // M5-2 · ⑨ 设置面板绑定
     (function initSettingsUI() {
@@ -931,6 +1273,12 @@
         // 特殊 cmd
         if (cmd === 'immersive') { if (typeof toggleFullscreen === 'function') toggleFullscreen(); return; }
         if (cmd === 'reset-view') { if (lastSceneStarter) lastSceneStarter(); return; }
+        // ADR-011 AR 测试桥
+        if (cmd === 'ar-start') { if (typeof window.enterAR === 'function') window.enterAR(); return; }
+        if (cmd === 'ar-end' || cmd === 'ar-exit') { if (typeof window.exitAR === 'function') window.exitAR(); return; }
+        if (cmd === 'ar-reset') { if (typeof window.resetAR === 'function') window.resetAR(); return; }
+        // ADR-010 拉远程 sample 测试桥
+        if (cmd === 'pull-sample') { const b = document.getElementById('mng-pull-sample-btn'); if (b) b.click(); return; }
         // 场景 cmd → sceneStarters(SCENES JSON 驱动)
         if (sceneStarters[cmd]) { sceneStarters[cmd](); return; }
         // 其他 UI 按钮 cmd → button id 映射

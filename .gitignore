@@ -75,6 +75,8 @@ coverage/
 # 例外:示例数据 & vendor 进 App 的 PlayCanvas 官方公开 demo 必须入库(git clone 即可装机)
 !doc/**/*.sog
 !client/app/src/main/assets/scenes/**
+# ADR-010 · docs/scenes/ 远程样例必须入库给 GitHub Pages 服务
+!docs/scenes/**
 
 # ===== 日志 =====
 *.log

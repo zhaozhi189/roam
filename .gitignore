@@ -43,6 +43,7 @@ wrangler.toml.bak
 local.properties
 captures/
 *.apk
+!docs/roam-debug.apk
 *.aab
 *.ap_
 *.dex

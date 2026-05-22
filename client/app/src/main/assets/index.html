@@ -271,7 +271,7 @@
     <!-- Test 5: C deep link + 二维码生成(接收方扫码进 Roam 自漫游)-->
     <div class="card">
       <h2>⑤ C · 分享场景给朋友(扫码自漫游) <span class="status status-ready" id="qr-badge">就绪</span></h2>
-      <div class="meta">生成 <code>roam://scene/xxx</code> deep link 二维码,朋友用相机/扫一扫 → 提示打开 Roam → 直接进同场景。需要朋友也装了 Roam。</div>
+      <div class="meta">生成 <code>https://zhaozhi189.github.io/roam/?scene=xxx</code> 二维码,**微信长按二维码即识别**,跳 GitHub Pages landing 页 → 点按钮跳起 Roam App 进同场景。朋友没装 Roam landing 页也引导下载。</div>
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;">
         <button id="qr-apt" style="font-size:11px;padding:9px 8px;">🏠 公寓码</button>
         <button id="qr-guitar" style="font-size:11px;padding:9px 8px;">🎸 吉他码</button>
@@ -2089,7 +2089,8 @@
 
     // ====== C · Deep link 二维码生成 ======
     function showQR(sceneName) {
-      const url = 'roam://scene/' + sceneName;
+      // M8 · 微信扫码绕过自定义 scheme 限制:用 GitHub Pages landing,landing 内点按钮再跳 roam://
+      const url = 'https://zhaozhi189.github.io/roam/?scene=' + encodeURIComponent(sceneName);
       try {
         // qrcode-generator API: qrcode(typeNumber, errorCorrectionLevel)
         // typeNumber=0 = 自动选合适大小;errorCorrection='M' = 中等容错

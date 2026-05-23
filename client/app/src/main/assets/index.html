@@ -442,6 +442,7 @@
     let userSettings = loadSettings();
     let pcApp = null;          // 早 init 防 TDZ
     let currentCam = null;     // 同上
+    let loadVersion = 0;       // M8 修 · 场景加载版本号:慢/远程 fetch 还没回来时切场景,旧 callback 用 version 判断已过期就静默丢弃,避免覆盖新场景 UI
 
     // 同步检查 PlayCanvas 是否成功暴露 pc 全局(UMD 包装会挂到 window.pc)
     var __PC_LOADED__ = (typeof pc !== 'undefined' && pc.version);
@@ -782,7 +783,8 @@
     // 利用 PlayCanvas Asset 直接 fetch https URL(WebView 已有 INTERNET 权限)。
     // 真自扫场景训好后 zhi 覆盖 docs/scenes/sample.compressed.ply,这里自动取新文件。
     document.getElementById('mng-pull-sample-btn').addEventListener('click', () => {
-      const REMOTE_URL = 'https://zhaozhi189.github.io/roam/scenes/sample.compressed.ply';
+      // M8 修 · 优先 jsdelivr CDN(国内访问 GitHub Pages 经常慢/超时,jsdelivr 走 fastly 边缘节点更稳)
+      const REMOTE_URL = 'https://cdn.jsdelivr.net/gh/zhaozhi189/roam@main/docs/scenes/sample.compressed.ply';
       const id = 'remote-sample';
       const badge = document.getElementById('mng-badge');
       // 已注册过 → 直接启动(避免重复 push)
@@ -794,8 +796,12 @@
       }
       // 首次拉:先 fetch HEAD 检测可达,再注册场景
       badge.textContent = '⏳ 拉远程…';
-      fetch(REMOTE_URL, { method: 'HEAD' })
+      // M8 修 · 10s HEAD timeout(网络不通时早 fail,不要无限等)
+      const ac = new AbortController();
+      const headTimer = setTimeout(() => ac.abort(), 10000);
+      fetch(REMOTE_URL, { method: 'HEAD', signal: ac.signal })
         .then((r) => {
+          clearTimeout(headTimer);
           if (!r.ok) throw new Error('HTTP ' + r.status);
           const len = r.headers.get('content-length');
           const sizeMB = len ? (parseInt(len, 10) / 1024 / 1024).toFixed(1) : '?';
@@ -821,11 +827,13 @@
           if (sceneStarters[id]) sceneStarters[id]();
         })
         .catch((e) => {
+          clearTimeout(headTimer);
+          const msg = (e && e.name === 'AbortError') ? 'HEAD 超时 10s · 网络不通' : (e && e.message || String(e));
           console.error('[Roam] 拉远程 sample 失败:', e);
-          badge.textContent = '✗ ' + e.message;
+          badge.textContent = '✗ ' + msg;
           badge.className = 'status status-error';
           if (window.RoamBridge && window.RoamBridge.toast) {
-            window.RoamBridge.toast('拉远程失败: ' + e.message);
+            window.RoamBridge.toast('拉远程失败: ' + msg);
           }
         });
     });
@@ -1397,6 +1405,9 @@
     // ====== 启动 3DGS 真渲染场景(PlayCanvas Engine 2.x 内置 gsplat handler)======
     async function startGSplatScene(url, sceneName, opts) {
       opts = opts || {};
+      // M8 修 · 版本号:每次启动累加,慢 fetch 后回来发现已过期就丢弃,避免覆盖新场景
+      const myVer = ++loadVersion;
+      const isStale = () => myVer !== loadVersion;
       const canvas = document.getElementById('pc-canvas');
       const status = document.getElementById('pc-status');
       const fpsEl = document.getElementById('pc-fps');
@@ -1431,12 +1442,25 @@
         // 加载 GSplat asset(.sog / .ply / .compressed.ply 都走同一路径)
         const t0 = performance.now();
         const asset = new pc.Asset(sceneName, 'gsplat', { url });
-        pcApp.assets.add(asset);
+        const localPcApp = pcApp;  // 闭包绑定本次的 pcApp,destroy 后失效但本地引用还在
+        localPcApp.assets.add(asset);
+        // M8 修 · 30s 超时:慢网/远程 fetch 不返回时主动 reject,不让 spinner 永远转
+        const isRemote = /^https?:\/\//.test(url);
+        const timeoutMs = isRemote ? 30000 : 15000;
         await new Promise((resolve, reject) => {
-          asset.once('load', resolve);
-          asset.once('error', (err) => reject(new Error(String(err))));
-          pcApp.assets.load(asset);
+          const timer = setTimeout(() => {
+            reject(new Error('加载超时 ' + (timeoutMs / 1000) + 's · 网络慢或 URL 不可达'));
+          }, timeoutMs);
+          asset.once('load', () => { clearTimeout(timer); resolve(); });
+          asset.once('error', (err) => { clearTimeout(timer); reject(new Error(String(err))); });
+          localPcApp.assets.load(asset);
         });
+        // 等到了 fetch 完,但场景可能已被切走 → 丢弃
+        if (isStale()) {
+          console.log('[Roam] stale load discarded:', sceneName, '(version', myVer, '<', loadVersion, ')');
+          try { asset.unload && asset.unload(); } catch (e) {}
+          return;
+        }
         const loadMs = (performance.now() - t0).toFixed(0);
         console.log('[Roam] GSplat loaded:', sceneName, 'in', loadMs, 'ms');
 
@@ -1476,6 +1500,11 @@
 
         if (typeof window.onPlayCanvasReady === 'function') window.onPlayCanvasReady();
       } catch (err) {
+        // M8 修 · 已被切走的 err 也丢弃,不要覆盖新场景 UI
+        if (isStale()) {
+          console.log('[Roam] stale error discarded:', sceneName, '|', (err && err.message) || err);
+          return;
+        }
         const msg = (err && err.message) || String(err);
         const stack = (err && err.stack) || '(无 stack)';
         console.error('[Roam] startGSplatScene 失败:', err);

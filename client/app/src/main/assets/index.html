@@ -84,6 +84,44 @@
       border-radius: 0; border: none;
       margin: 0; background: #000;
     }
+    /* ADR-012 · AR-lite 模式:wrap 透明(让背后 video camera feed 透过)+ canvas 透明 */
+    #pc-canvas-wrap.fullscreen.ar-lite { background: transparent; }
+    #ar-lite-video {
+      display: none;
+      position: fixed; inset: 0;
+      width: 100vw; height: 100vh;
+      object-fit: cover;
+      z-index: 99998;  /* 比 fullscreen wrap (99999) 低一级,垫在 canvas 后面 */
+      background: #000;
+    }
+    #ar-lite-video.active { display: block; }
+    #ar-lite-controls {
+      display: none;
+      position: fixed; left: 0; right: 0;
+      bottom: max(env(safe-area-inset-bottom), 16px);
+      z-index: 100001;  /* 高于 fullscreen wrap */
+      text-align: center; padding: 0 12px;
+      pointer-events: none;
+    }
+    #ar-lite-controls.active { display: block; }
+    #ar-lite-controls .row {
+      display: inline-flex; gap: 10px; pointer-events: auto;
+      background: rgba(0,0,0,0.45); backdrop-filter: blur(10px);
+      padding: 8px 12px; border-radius: 999px;
+      border: 1px solid rgba(255,255,255,0.12);
+    }
+    #ar-lite-controls button {
+      margin: 0; padding: 8px 14px; font-size: 13px;
+      background: rgba(255,255,255,0.10); color: #fff;
+      border: 1px solid rgba(255,255,255,0.18);
+      border-radius: 999px; width: auto; box-shadow: none;
+    }
+    #ar-lite-controls .hint {
+      margin-top: 8px; color: #fff; font-size: 12px;
+      text-shadow: 0 1px 3px rgba(0,0,0,0.8); padding: 4px 10px;
+      background: rgba(0,0,0,0.35); display: inline-block; border-radius: 999px;
+      pointer-events: none;
+    }
     /* 沉浸模式 controls auto-hide:3s 无操作淡出,touch 时再出现 */
     #pc-canvas-wrap.fullscreen.controls-hidden #pc-fps,
     #pc-canvas-wrap.fullscreen.controls-hidden #pc-scene-chip,
@@ -347,8 +385,15 @@
       <div id="ar-info" style="font-size:11px;font-family:ui-monospace,monospace;color:rgba(255,255,255,0.7);padding:8px 10px;background:rgba(0,0,0,0.20);border-radius:6px;">检测中…</div>
       <button id="ar-start-btn" disabled style="margin-top:8px;">🥽 在 AR 中查看(需先选场景)</button>
       <div id="ar-fallback" style="display:none;margin-top:8px;padding:10px 12px;font-size:11px;line-height:1.6;background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.20);border-radius:6px;color:#FCD34D;">
-        ⚠️ <b>当前设备不支持 AR</b><br/>
-        Magic OS 国行版无 GMS / ARCore。把 ⑤ 二维码发给朋友(Pixel / 米 / 三星等有 GMS 设备),他们在 Chrome 打开 landing 即可体验 AR。
+        💡 <b>ADR-012 降级方案</b>(真 AR 不可用时用,或随时试):
+        <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap;">
+          <button id="ar-lite-start-btn" disabled style="flex:1;min-width:140px;padding:10px 12px;font-size:12px;background:rgba(6,182,212,0.20);border:1px solid rgba(6,182,212,0.40);color:#67E8F9;border-radius:8px;box-shadow:none;margin:0;">📱 AR-lite(相机叠加)</button>
+          <button id="vr-start-btn" disabled style="flex:1;min-width:140px;padding:10px 12px;font-size:12px;background:rgba(139,92,246,0.20);border:1px solid rgba(139,92,246,0.40);color:#C4B5FD;border-radius:8px;box-shadow:none;margin:0;">🥽 VR 沉浸</button>
+        </div>
+        <div style="margin-top:8px;font-size:10px;color:rgba(252,211,77,0.65);line-height:1.5;">
+          • <b>AR-lite</b>:后摄相机画面叠 splat,手指拖动 / 缩放(无平面检测,纯叠加)<br/>
+          • <b>VR</b>:WebXR immersive-vr session,陀螺仪转头环视 splat(纯虚拟空间)<br/>
+          • <b>真 AR</b>:借朋友 Pixel / 米国际 / 三星国际,Chrome 打开 landing 同样能跑
       </div>
       <div class="meta" style="margin-top:6px;font-size:11px;">
         <b>步骤</b>:① 启动 AR · ② 对准地面 / 桌面看到圆环 · ③ 单击屏幕放置 · ④ 双指捏合缩放 · ⑤ 单指拖动调位 · ⑥ ↺ 重置 / ✕ 退出
@@ -362,6 +407,16 @@
         <button id="ar-exit-btn" style="margin:0;padding:8px 14px;font-size:13px;background:rgba(239,68,68,0.25);border:1px solid rgba(239,68,68,0.45);color:#F87171;box-shadow:none;width:auto;border-radius:999px;">✕ 退出</button>
       </div>
       <div id="ar-hint" style="margin-top:10px;color:white;text-shadow:0 1px 3px rgba(0,0,0,0.8);font-size:13px;padding:0 16px;line-height:1.5;">对准地面或桌面…</div>
+    </div>
+
+    <!-- ADR-012 · AR-lite 模式:相机 feed 全屏背景(垫在 canvas 后)+ 浮动控制条 -->
+    <video id="ar-lite-video" autoplay playsinline muted></video>
+    <div id="ar-lite-controls">
+      <div class="row">
+        <button id="ar-lite-reset-btn">↺ 复位</button>
+        <button id="ar-lite-exit-btn">✕ 退出</button>
+      </div>
+      <div class="hint" id="ar-lite-hint">📱 AR-lite · 单指拖转视角 · 双指捏缩放</div>
     </div>
 
     <!-- M5-2 · ⑨ 设置 -->
@@ -912,6 +967,20 @@
       touchState: null,         // 触摸手势状态
       xrListenersBound: false,  // 防重复绑定
     };
+    // ADR-012 · AR-lite 模式(getUserMedia 相机叠加,无 SLAM)
+    const arLiteState = {
+      active: false,
+      stream: null,             // MediaStream
+      savedClearColor: null,    // 进入前 camera clearColor 备份
+      savedSplatPose: null,     // 进入前 splat pose 备份
+      wasFullscreen: false,     // 进入前是否已沉浸(退出时决定是否同时退沉浸)
+    };
+    // ADR-012 · VR-imm 模式(WebXR immersive-vr session)
+    const vrState = {
+      active: false,
+      savedClearColor: null,
+      savedSplatPose: null,
+    };
 
     function arHint(text) {
       const el = document.getElementById('ar-hint');
@@ -919,50 +988,83 @@
     }
 
     // 探测 AR 可用性
+    // 探测真 AR(Layer 1)+ AR-lite + VR 三种能力 — ADR-011/ADR-012
+    // Layer 1 (isSessionSupported) 在 Magic7 上会骗人(返 true 但 requestSession 失败)
+    // Layer 2 (真 requestSession) 在 enterAR 内试,失败 → fallback 弹 toast
     (async function detectAR() {
       const badge = document.getElementById('ar-badge');
       const info = document.getElementById('ar-info');
       const btn = document.getElementById('ar-start-btn');
       const fallback = document.getElementById('ar-fallback');
+      const liteBtn = document.getElementById('ar-lite-start-btn');
+      const vrBtn = document.getElementById('vr-start-btn');
       if (!info) return;
       const lines = [];
+      // 1) navigator.xr 存在?
       const hasXr = 'xr' in navigator;
-      lines.push('navigator.xr: ' + (hasXr ? '✓ 存在' : '✗ 缺失'));
-      if (!hasXr) {
-        info.textContent = lines.join('\n');
-        badge.textContent = '✗ 不支持'; badge.className = 'status status-error';
-        fallback.style.display = 'block';
-        btn.dataset.unsupported = 'true';
-        return;
+      lines.push('navigator.xr: ' + (hasXr ? '✓' : '✗'));
+      // 2) immersive-ar L1?
+      let arL1 = false;
+      if (hasXr) {
+        try { arL1 = await navigator.xr.isSessionSupported('immersive-ar'); }
+        catch (e) { lines.push('isSession(ar) err: ' + e.message); }
       }
-      try {
-        const arOk = await navigator.xr.isSessionSupported('immersive-ar');
-        lines.push('immersive-ar: ' + (arOk ? '✓' : '✗ (推测无 ARCore/ARKit)'));
-        info.textContent = lines.join('\n');
-        if (arOk) {
-          badge.textContent = '✓ AR 可用'; badge.className = 'status status-ready';
-          btn.addEventListener('click', enterAR);
-        } else {
-          badge.textContent = '✗ 不支持'; badge.className = 'status status-error';
-          fallback.style.display = 'block';
-          btn.dataset.unsupported = 'true';
-        }
-      } catch (e) {
-        lines.push('error: ' + e.message);
-        info.textContent = lines.join('\n');
-        badge.textContent = '✗ ' + e.message; badge.className = 'status status-error';
-        fallback.style.display = 'block';
-        btn.dataset.unsupported = 'true';
+      lines.push('immersive-ar (Layer 1): ' + (arL1 ? '✓' : '✗'));
+      // 3) AR-lite 能力(getUserMedia)
+      const hasGUM = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+      lines.push('getUserMedia: ' + (hasGUM ? '✓' : '✗'));
+      // 4) immersive-vr 能力
+      let vrOk = false;
+      if (hasXr) {
+        try { vrOk = await navigator.xr.isSessionSupported('immersive-vr'); }
+        catch (e) {}
       }
+      lines.push('immersive-vr: ' + (vrOk ? '✓' : '✗'));
+      info.textContent = lines.join('\n');
+      // === 主 AR 按钮 ===
+      if (arL1) {
+        badge.textContent = '✓ AR L1 可用(L2 待试)'; badge.className = 'status status-ready';
+        btn.addEventListener('click', enterAR);
+      } else {
+        badge.textContent = '✗ 真 AR 不可用'; badge.className = 'status status-error';
+        btn.dataset.unsupported = 'true';
+        fallback.style.display = 'block';
+      }
+      // === AR-lite 按钮(ADR-012 Phase 1)===
+      if (liteBtn && hasGUM) {
+        liteBtn.dataset.canRun = 'true';
+        liteBtn.addEventListener('click', enterARLite);
+      } else if (liteBtn) {
+        liteBtn.textContent = '📱 AR-lite(无 getUserMedia)';
+      }
+      // === VR 按钮(ADR-012 Phase 2)===
+      if (vrBtn && vrOk) {
+        vrBtn.dataset.canRun = 'true';
+        vrBtn.addEventListener('click', enterVR);
+      } else if (vrBtn) {
+        vrBtn.textContent = '🥽 VR 不支持';
+      }
+      // 始终显示 fallback 区(只要有 AR-lite 或 VR 能力)
+      // ← Magic7 case: L1=true 是骗人的,L2 会 NotSupportedError;用户需要 fallback 兜底
+      if (hasGUM || vrOk) fallback.style.display = 'block';
     })();
 
-    // 场景就绪 + AR 可用 时启用启动按钮
+    // 场景就绪后 启用三个 AR 入口(真 AR / AR-lite / VR)按钮
     setInterval(function arBtnUpdateAvail() {
       const btn = document.getElementById('ar-start-btn');
-      if (!btn || btn.dataset.unsupported === 'true' || arState.active) return;
+      const liteBtn = document.getElementById('ar-lite-start-btn');
+      const vrBtn = document.getElementById('vr-start-btn');
       const splat = pcApp && pcApp.root && pcApp.root.findByName('splat');
-      btn.disabled = !splat;
-      btn.textContent = splat ? '🥽 在 AR 中查看' : '🥽 在 AR 中查看(需先选场景)';
+      if (btn && btn.dataset.unsupported !== 'true' && !arState.active) {
+        btn.disabled = !splat;
+        btn.textContent = splat ? '🥽 在 AR 中查看' : '🥽 在 AR 中查看(需先选场景)';
+      }
+      if (liteBtn && liteBtn.dataset.canRun === 'true' && !arLiteState.active) {
+        liteBtn.disabled = !splat;
+      }
+      if (vrBtn && vrBtn.dataset.canRun === 'true' && !vrState.active) {
+        vrBtn.disabled = !splat;
+      }
     }, 500);
 
     // === enterAR / exitAR / resetAR ===
@@ -1026,6 +1128,175 @@
     window.exitAR = exitAR;
     window.resetAR = resetAR;
 
+    // ============================================================
+    // ADR-012 · AR-lite 模式(getUserMedia 后摄叠 splat,无 SLAM,纯叠加)
+    // 复用现有沉浸模式(toggleFullscreen)+ 透明 canvas + 沿用现有 orbit 相机控制
+    // ============================================================
+    async function enterARLite() {
+      if (!pcApp || !currentCam) { alert('请先加载场景'); return; }
+      const splat = pcApp.root.findByName('splat');
+      if (!splat) { alert('splat 未加载'); return; }
+      if (arLiteState.active || arState.active || vrState.active) return;
+      try {
+        // 1. 起 camera stream
+        arLiteState.stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } },
+          audio: false,
+        });
+        const video = document.getElementById('ar-lite-video');
+        video.srcObject = arLiteState.stream;
+        video.classList.add('active');
+        // 2. 备份 splat pose + clearColor
+        arLiteState.savedSplatPose = {
+          pos: splat.getPosition().clone(),
+          rot: splat.getRotation().clone(),
+          scl: splat.getLocalScale().clone(),
+        };
+        const cam = currentCam.cameraEntity && currentCam.cameraEntity.camera;
+        if (cam) {
+          arLiteState.savedClearColor = cam.clearColor.clone();
+          cam.clearColor = new pc.Color(0, 0, 0, 0);
+        }
+        // 3. 进沉浸模式(canvas 全屏)+ 加 .ar-lite 让 wrap 透明
+        const wrap = document.getElementById('pc-canvas-wrap');
+        arLiteState.wasFullscreen = wrap.classList.contains('fullscreen');
+        if (!arLiteState.wasFullscreen && typeof toggleFullscreen === 'function') toggleFullscreen(true);
+        wrap.classList.add('ar-lite');
+        // 4. 显示控制条 — 移到 body 末尾(避开 .wrap/.card 内 stacking context 把 fixed 困住)
+        // 同样把 video 也移到 body
+        const ctrl = document.getElementById('ar-lite-controls');
+        const vid = document.getElementById('ar-lite-video');
+        if (ctrl.parentNode !== document.body) document.body.appendChild(ctrl);
+        if (vid.parentNode !== document.body) document.body.appendChild(vid);
+        ctrl.classList.add('active');
+        // 用 setAttribute 完全替换 style,确保 !important + position:fixed 必生效
+        ctrl.setAttribute('style', 'display:block !important;position:fixed !important;left:50% !important;bottom:max(env(safe-area-inset-bottom),16px) !important;transform:translateX(-50%) !important;z-index:2147483647 !important;text-align:center;pointer-events:none;');
+        arLiteState.active = true;
+        if (window.RoamBridge && typeof RoamBridge.toast === 'function') RoamBridge.toast('AR-lite 启动 · 单指拖 / 双指捏');
+      } catch (e) {
+        console.error('[AR-lite] enter failed', e);
+        const msg = (e && e.name === 'NotAllowedError') ? '相机权限被拒' : ((e && e.message) || String(e));
+        alert('AR-lite 启动失败: ' + msg);
+        exitARLite();
+      }
+    }
+
+    function exitARLite() {
+      if (!arLiteState.active) {
+        // 即使没成功 active,也要清理可能 partial 状态
+        if (arLiteState.stream) {
+          arLiteState.stream.getTracks().forEach((t) => t.stop());
+          arLiteState.stream = null;
+        }
+        return;
+      }
+      // 1. 停 camera stream
+      if (arLiteState.stream) {
+        arLiteState.stream.getTracks().forEach((t) => t.stop());
+        arLiteState.stream = null;
+      }
+      const video = document.getElementById('ar-lite-video');
+      video.srcObject = null;
+      video.classList.remove('active');
+      // 2. 还原 splat pose
+      const splat = pcApp && pcApp.root && pcApp.root.findByName('splat');
+      if (splat && arLiteState.savedSplatPose) {
+        splat.setPosition(arLiteState.savedSplatPose.pos);
+        splat.setRotation(arLiteState.savedSplatPose.rot);
+        splat.setLocalScale(arLiteState.savedSplatPose.scl);
+      }
+      // 3. 还原相机 clearColor
+      const cam = currentCam && currentCam.cameraEntity && currentCam.cameraEntity.camera;
+      if (cam && arLiteState.savedClearColor) cam.clearColor = arLiteState.savedClearColor;
+      arLiteState.savedClearColor = null;
+      arLiteState.savedSplatPose = null;
+      // 4. 退沉浸(如果是 enterARLite 主动开的)+ 去 .ar-lite class
+      const wrap = document.getElementById('pc-canvas-wrap');
+      wrap.classList.remove('ar-lite');
+      if (!arLiteState.wasFullscreen && typeof toggleFullscreen === 'function') toggleFullscreen(false);
+      // 5. 隐藏控制条
+      const ctrl = document.getElementById('ar-lite-controls');
+      ctrl.classList.remove('active');
+      ctrl.setAttribute('style', 'display:none;');  // 完全替换 enterARLite 加的 inline
+      arLiteState.active = false;
+    }
+
+    function resetARLite() {
+      // 复位:重启场景(等价 reset-view),sceneStarter 会重新摆 splat
+      if (typeof lastSceneStarter === 'function') lastSceneStarter();
+    }
+
+    window.enterARLite = enterARLite;
+    window.exitARLite = exitARLite;
+    window.resetARLite = resetARLite;
+
+    // ============================================================
+    // ADR-012 · VR-imm 模式(WebXR immersive-vr session)
+    // Magic7 实测 2026-05-31:requestSession('immersive-vr') ✅ 可启动(不卡白名单)
+    // 进 session 后 PlayCanvas 接管 stereo + 陀螺仪追踪
+    // ============================================================
+    function enterVR() {
+      // ADR-012 限制:Roam WebView 不暴露 navigator.xr → VR session 启不起来
+      // VR 只能在 Chrome 等真浏览器里跑(用户可用 Roam landing https URL 在 Chrome 打开)
+      if (!('xr' in navigator)) {
+        alert('Roam WebView 不支持 WebXR。要试 VR,请在 Chrome 打开 Roam landing 网页:https://zhaozhi189.github.io/roam/');
+        return;
+      }
+      if (!pcApp || !currentCam) { alert('请先加载场景'); return; }
+      const splat = pcApp.root.findByName('splat');
+      if (!splat) { alert('splat 未加载'); return; }
+      if (vrState.active || arState.active || arLiteState.active) return;
+      // 备份 splat + clearColor(VR session 退出后还原)
+      vrState.savedSplatPose = {
+        pos: splat.getPosition().clone(),
+        rot: splat.getRotation().clone(),
+        scl: splat.getLocalScale().clone(),
+      };
+      const cam = currentCam.cameraEntity && currentCam.cameraEntity.camera;
+      if (cam) {
+        vrState.savedClearColor = cam.clearColor.clone();
+        // VR 模式黑色背景(没有 camera feed)
+        cam.clearColor = new pc.Color(0.02, 0.02, 0.05, 1);
+      }
+      bindXRListenersOnce();  // 复用 AR 的 start/end 事件,内部按 xr.type 分流
+      try {
+        pcApp.xr.start(cam, pc.XRTYPE_VR, pc.XRSPACE_LOCAL, {
+          // immersive-vr 不需要 hit-test/anchor/dom-overlay
+        });
+        // session lifecycle 由 bindXRListenersOnce 里的 onXRStart/onXREnd 复用处理
+        // 这里仅设置 vrState.active = true 作为模式标记
+        vrState.active = true;
+        if (window.RoamBridge && typeof RoamBridge.toast === 'function') RoamBridge.toast('VR 启动 · 转动手机环视');
+      } catch (e) {
+        console.error('[VR] enter failed', e);
+        alert('VR 启动失败: ' + ((e && e.message) || String(e)));
+        // 还原
+        if (cam && vrState.savedClearColor) cam.clearColor = vrState.savedClearColor;
+        vrState.active = false;
+      }
+    }
+
+    function exitVR() {
+      if (!vrState.active) return;
+      try { pcApp.xr.end(); } catch (e) { console.error('[VR] end failed', e); }
+      // 实际清理走 onXREnd(底下 bindXRListenersOnce 内)— 那里需要识别是 AR 还是 VR
+      // 这里仅把状态置 false 让 onXREnd 知道是 VR
+      const splat = pcApp && pcApp.root && pcApp.root.findByName('splat');
+      if (splat && vrState.savedSplatPose) {
+        splat.setPosition(vrState.savedSplatPose.pos);
+        splat.setRotation(vrState.savedSplatPose.rot);
+        splat.setLocalScale(vrState.savedSplatPose.scl);
+      }
+      const cam = currentCam && currentCam.cameraEntity && currentCam.cameraEntity.camera;
+      if (cam && vrState.savedClearColor) cam.clearColor = vrState.savedClearColor;
+      vrState.savedClearColor = null;
+      vrState.savedSplatPose = null;
+      vrState.active = false;
+    }
+
+    window.enterVR = enterVR;
+    window.exitVR = exitVR;
+
     // 绑定 XR session 生命周期事件(只绑一次,避免 pcApp 重建时累加)
     function bindXRListenersOnce() {
       if (arState.xrListenersBound) return;
@@ -1041,6 +1312,11 @@
     }
 
     function onXRStart() {
+      // ADR-012 · VR session 不需要 hit-test / reticle / ar-overlay,提前退
+      if (pcApp.xr.type === pc.XRTYPE_VR) {
+        console.log('[VR] session started');
+        return;
+      }
       console.log('[AR] session started');
       arState.active = true;
       document.getElementById('ar-overlay').style.display = 'block';
@@ -1084,6 +1360,12 @@
     }
 
     function onXREnd() {
+      // ADR-012 · VR session 退出 — 清理已在 exitVR 做了
+      if (vrState.active) {
+        console.log('[VR] session ended');
+        vrState.active = false;
+        return;
+      }
       console.log('[AR] session ended');
       arState.active = false;
       document.getElementById('ar-overlay').style.display = 'none';
@@ -1205,6 +1487,11 @@
     // floating UI 按钮
     document.getElementById('ar-reset-btn').addEventListener('click', resetAR);
     document.getElementById('ar-exit-btn').addEventListener('click', exitAR);
+    // ADR-012 · AR-lite 控制条按钮
+    const _alReset = document.getElementById('ar-lite-reset-btn');
+    if (_alReset) _alReset.addEventListener('click', resetARLite);
+    const _alExit = document.getElementById('ar-lite-exit-btn');
+    if (_alExit) _alExit.addEventListener('click', exitARLite);
 
     // M5-2 · ⑨ 设置面板绑定
     (function initSettingsUI() {
@@ -1285,6 +1572,11 @@
         if (cmd === 'ar-start') { if (typeof window.enterAR === 'function') window.enterAR(); return; }
         if (cmd === 'ar-end' || cmd === 'ar-exit') { if (typeof window.exitAR === 'function') window.exitAR(); return; }
         if (cmd === 'ar-reset') { if (typeof window.resetAR === 'function') window.resetAR(); return; }
+        // ADR-012 · AR-lite + VR fallback 模式
+        if (cmd === 'ar-lite-start' || cmd === 'lite-start') { if (typeof window.enterARLite === 'function') window.enterARLite(); return; }
+        if (cmd === 'ar-lite-end' || cmd === 'ar-lite-exit' || cmd === 'lite-end') { if (typeof window.exitARLite === 'function') window.exitARLite(); return; }
+        if (cmd === 'vr-start') { if (typeof window.enterVR === 'function') window.enterVR(); return; }
+        if (cmd === 'vr-end' || cmd === 'vr-exit') { if (typeof window.exitVR === 'function') window.exitVR(); return; }
         // ADR-010 拉远程 sample 测试桥
         if (cmd === 'pull-sample') { const b = document.getElementById('mng-pull-sample-btn'); if (b) b.click(); return; }
         // 场景 cmd → sceneStarters(SCENES JSON 驱动)
@@ -2572,6 +2864,10 @@
     // Android Back 键:沉浸模式时先退沉浸,再 back 才退 App
     // 返回 true = 已处理(MainActivity 不再 dispatchBack),false = 走默认
     window.onAndroidBack = function () {
+      // ADR-012 · 优先退 AR-lite / VR / 真 AR(任一在 active)
+      if (arLiteState.active) { exitARLite(); return true; }
+      if (vrState.active) { exitVR(); return true; }
+      if (arState.active) { exitAR(); return true; }
       if (canvasWrap.classList.contains('fullscreen')) {
         toggleFullscreen(false);
         return true;

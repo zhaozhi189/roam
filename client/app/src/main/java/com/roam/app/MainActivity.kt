@@ -222,12 +222,14 @@ fun RoamWebView(
                 }
                 webChromeClient = object : WebChromeClient() {
                     // M6-1 · WebView 内 getUserMedia({audio:true}) 需要 Native 授权 mic
+                    // ADR-012 · AR-lite 模式 getUserMedia({video:{facingMode:'environment'}}) 需 Native 授权 camera
                     override fun onPermissionRequest(request: android.webkit.PermissionRequest?) {
                         if (request == null) return
                         val wanted = request.resources
-                        // 只授权 mic(VIDEO_CAPTURE / MIDI 不开)
+                        // 授权 mic + camera(MIDI 不开)
                         val granted = wanted.filter {
-                            it == android.webkit.PermissionRequest.RESOURCE_AUDIO_CAPTURE
+                            it == android.webkit.PermissionRequest.RESOURCE_AUDIO_CAPTURE ||
+                            it == android.webkit.PermissionRequest.RESOURCE_VIDEO_CAPTURE
                         }.toTypedArray()
                         if (granted.isNotEmpty()) request.grant(granted) else request.deny()
                     }

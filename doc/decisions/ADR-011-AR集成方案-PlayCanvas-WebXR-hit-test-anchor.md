@@ -1,7 +1,7 @@
 # ADR-011 · AR 集成方案 — PlayCanvas WebXR(hit-test + plane-detection + anchor + scale + reset)
 
-> 状态:✅ Accepted(决定走 WebXR 路线,接受 Magic7 Pro 可能不支持,留 fallback 文档)
-> 日期:2026-05-22
+> 状态:✅ Accepted(WebXR 路线锁定;Magic7 Pro 实测**确认不支持**,fallback 路径就是正解)
+> 日期:2026-05-22 起;2026-05-31 Magic7 Pro 沙盘验证完毕(v0.2)
 > 关联:[ADR-004 本地优先](ADR-004-MVP-方向调整-本地优先.md)、[ADR-005 WebView 套壳](ADR-005-应用形态-Android-WebView套壳.md)、[ADR-007 https 虚拟域名](ADR-007-WebViewAssetLoader-https-虚拟域名.md)、ADR-010 自扫数据源
 
 ---
@@ -163,15 +163,81 @@ API 现成,不需要引入新依赖。
 
 | 验证 | 期望 | 实测 |
 |---|---|---|
-| Magic7 Pro 🥽 探测 | ✗ 不支持(原因:无 ARCore) | 待测 |
-| 朋友 Pixel 7 启动 AR session | < 5s 进入 AR | 待测 |
-| 平面检测 reticle 显示 | 对准地面 2s 内出圆环 | 待测 |
-| 单击放置 splat | 公寓 0.5m × 0.5m 出现在地面 | 待测 |
-| 双指捏合缩放 | 0.1x ~ 3x 流畅 | 待测 |
-| 单指拖动调位 | 重新 hit-test 移位 | 待测 |
-| 反复退出 / 重进 | 不崩溃,anchor 重置 | 待测 |
-| 视觉质量 | splat 在 AR camera feed 上不闪烁 | 待测 |
-| Landing C 路径完整 | 朋友扫码 → landing → AR 全程 | 待测 |
+| Magic7 Pro 🥽 探测(Roam WebView) | ✗ 不支持(原因:无 ARCore) | ✅ **2026-05-31 实测确认**:WebView `navigator.xr` 缺失 |
+| Magic7 Pro + sideload ARCore + Chrome | 期望尝试绕过 | ❌ **2026-05-31 实测验完不行,详见下方 M8 章节** |
+| 朋友 Pixel 7 启动 AR session | < 5s 进入 AR | 待测(等借机) |
+| 平面检测 reticle 显示 | 对准地面 2s 内出圆环 | 待测(等借机) |
+| 单击放置 splat | 公寓 0.5m × 0.5m 出现在地面 | 待测(等借机) |
+| 双指捏合缩放 | 0.1x ~ 3x 流畅 | 待测(等借机) |
+| 单指拖动调位 | 重新 hit-test 移位 | 待测(等借机) |
+| 反复退出 / 重进 | 不崩溃,anchor 重置 | 待测(等借机) |
+| 视觉质量 | splat 在 AR camera feed 上不闪烁 | 待测(等借机) |
+| Landing C 路径完整 | 朋友扫码 → landing → AR 全程 | 待测(等借机) |
+
+## M8 沙盘验证(2026-05-31 Magic7 Pro · sideload 路径)
+
+> **背景**:M8 收尾时 zhi 想试「能不能在 Magic7 上 sideload Chrome + ARCore + Trichrome 绕过 GMS 限制实测 AR」,顺便看「能不能集成进 Roam」。本节是这次验证的**完整数据 + 明确结论**,避免下次再起同样念头浪费时间。
+
+### 验证环境
+
+| 项 | 值 |
+|---|---|
+| 设备 | Honor Magic7 Pro · PTP-AN10 · Android 16 · 骁龙 8 Elite · Adreno 830 |
+| GMS | `com.google.android.gms` 26.15.33(国行 Honor **居然预装完整 GMS**,意外发现) |
+| Play 商店 | `com.android.vending` 在,但 ARCore 详情页明示 **「您的设备与此版本不兼容」**(Google 服务器判定 Magic7 不在白名单) |
+| sideload ARCore | `com.google.ar.core` 1.54.260890493(arm64-v8a + armeabi-v7a)从 APKMirror 装 |
+| sideload Trichrome Library | `com.google.android.trichromelibrary` 149.0.7827.22 · versionCode 782702233(arm64-v8a)从 APKMirror 装 |
+| sideload Chrome | `com.android.chrome` 149.0.7827.22 · versionCode 782702233(arm64-v8a,Android 12L+ bundle,split apks)从 APKMirror 装 |
+
+### 验证步骤 + 数据
+
+| 步 | 测试 | 结果 |
+|---|---|---|
+| 1 | Roam WebView 内 `navigator.xr` 探测 | ❌ 缺失(WebView 不暴露 WebXR Device API,Chromium 设计如此) |
+| 2 | Chrome 用 `data:text/html,…` 探测 | ❌ `navigator.xr` 缺失 —— 但**这是 false negative**,原因:`data:` URL 是 unique opaque origin,`isSecureContext = false`,Chrome 在非 secure context 下不暴露 WebXR(同 getUserMedia 限制) |
+| 3 | Chrome 用 `http://localhost:8080`(Mac Python http.server + `adb reverse tcp:8080`,loopback 算 secure context)探测 | ✅ `navigator.xr` 存在,`isSecureContext: true` |
+| 4 | `isSessionSupported('immersive-ar')` | ✅ **返回 `true`** |
+| 4b | `isSessionSupported('immersive-vr')` | ✅ 返回 `true` |
+| 4c | `isSessionSupported('inline')` | ✅ 返回 `true` |
+| 5 | Chrome 弹出**官方 AR 权限对话框**「`http://localhost:8080` 想为您的周边环境创建 3D 地图并跟踪摄像头位置」→ 点「仅这次允许」 | ✅ 授权成功,Chrome 进入「准备启动 AR」状态(URL 栏出现 AR 图标) |
+| 6 | `requestSession('immersive-ar')` 裸调,**无 features** | ❌ `NotSupportedError: The specified session configuration is not supported.` |
+| 6b | `requestSession('immersive-ar', { requiredFeatures: ['local'] })` | ❌ 同上 |
+| 6c | `requiredFeatures: ['local-floor']` | ❌ 同上 |
+| 6d | `required: ['local'], optional: ['hit-test']` | ❌ 同上 |
+| 6e | `required: ['local-floor'], optional: ['hit-test', 'dom-overlay'], domOverlay: { root: body }` | ❌ 同上 |
+
+**5 种 session 配置全部 FAIL,同一个 `NotSupportedError`** —— 包括「裸调无 features」最弱配置。
+
+### 关键发现 · Google 的「两层防御」
+
+| 层 | 检查内容 | Magic7 表现 |
+|---|---|---|
+| **Layer 1 · `isSessionSupported`** | 软检查:ARCore 装了吗?Chrome 版本够吗?有摄像头吗? | ✅ 全过 → **返回 true** |
+| **Layer 2 · `requestSession`** | 硬检查:**设备指纹 vs ARCore 白名单**(hardcode 在 ARCore 二进制 + 服务端校验) | ❌ Magic7 不在表 → **拒绝创建 session** |
+
+**「isSessionSupported = true」会骗人** —— Google 故意这样设计:让网站知道「这台机原则上可以做 AR」(用于显示按钮 UI),但实际创建 session 时严卡白名单。如果只看 `isSessionSupported` 就会错误地认为设备 OK。
+
+### 结论 · sideload 路径死透,设备白名单是硬墙
+
+| 路径 | 验证结果 |
+|---|---|
+| Magic7 + sideload(ARCore + Chrome + Trichrome) | ❌ **NOT POSSIBLE** —— Layer 2 白名单拒绝,与是否 sideload 无关 |
+| Magic7 + Roam APK 集成 ARCore(把 ARCore 打包进 Roam) | ❌ 同样卡 Layer 2,**集成做了也没用** |
+| Magic7 + Roam APK 集成 8th Wall(纯 WASM SLAM,不依赖 ARCore) | ⚠️ 唯一**绕过白名单**的路径,但 8th Wall 商业 $99/月起,违 ADR-004 个人项目不引付费服务 |
+| **白名单设备(Pixel / 米国际 / 三星国际 / 一加国际)+ 现有 ADR-011 路线** | ✅ **保持不变,这就是正解** |
+
+### 给未来 zhi 的提醒(避免重蹈覆辙)
+
+1. **不要再花时间 sideload ARCore 绕白名单** —— 实测明确死透,2026-05-31 用了 2 小时验完,文档化在此
+2. **不要把 ARCore 打包进 Roam APK** —— 白名单是硬墙,集成做了 Magic7 用户仍然用不上
+3. **「Roam 一键 AR」集成方案不值得做** —— 除非将来在 Roam 用户群里**白名单设备占比 >50%**,做集成才有 ROI
+4. **要真测 AR,只能借 GMS 白名单机** —— 现 Roam landing https URL 已就绪,白名单机用 Chrome 直接打开即可,无需 sideload 任何东西
+5. **要破白名单,只有两条路**:① root + Magisk 改 device fingerprint(Magic7 没 root 渠道,死);② 8th Wall 等商业 WASM SLAM(要钱)
+
+### 现 ADR-011 决策 100% 正确,不需要修改
+
+实测结果**完全符合**原 ADR 中「Magic7 Pro 大概率不支持」的预期。原 fallback 文档(🥽 卡片显示「✗ 无 ARCore,借机用 Chrome」)就是正确处理。
+本次验证只是把「大概率」升级为「**100% 确认**」+ 把绕过路径试了一遍封闭掉。
 
 ## 何时回头看
 
@@ -189,3 +255,4 @@ API 现成,不需要引入新依赖。
 | 版本 | 日期 | 修订内容 |
 |---|---|---|
 | v0.1 | 2026-05-22 | 初版,M7 完成 + ADR-010 自扫数据源决策后,启动 AR 真集成方案;锁定 PlayCanvas WebXR 路线 + 全套功能范围;承认 Magic7 Pro 大概率不支持 + 文档化 fallback |
+| v0.2 | 2026-05-31 | 加 M8 沙盘验证章节:Magic7 + sideload(ARCore 1.54 + Chrome 149 + Trichrome 149)实测,Layer 1 `isSessionSupported = true` 但 Layer 2 `requestSession` 全部 `NotSupportedError`(5 种配置都 FAIL),证明设备白名单是硬墙;明确「集成 ARCore 进 Roam 没用」「sideload 绕不过」「8th Wall 是唯一非商业绕过路径但要钱」,给未来 zhi 留 5 条避坑提醒;原 ADR-011 决策不变,fallback 路线即正解 |

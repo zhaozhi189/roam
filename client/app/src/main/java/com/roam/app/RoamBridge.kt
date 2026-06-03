@@ -25,7 +25,6 @@ import java.io.FileOutputStream
 class RoamBridge(
     private val activity: Activity,
     private val spzPickerLauncher: ActivityResultLauncher<Array<String>>,
-    private val mediaProjectionLauncher: ActivityResultLauncher<Intent>,
     private val qrScanLauncher: ActivityResultLauncher<com.journeyapps.barcodescanner.ScanOptions>
 ) {
     /** SAF 选 .spz 文件 */
@@ -37,41 +36,9 @@ class RoamBridge(
         }
     }
 
-    /**
-     * H7 录屏 — 启动 MediaProjection 权限请求。
-     *
-     * Android 14+(API 34)用 MediaProjectionConfig.createConfigForDefaultDisplay() 强制
-     * 「整个屏幕」模式,避免 MagicOS / 部分 OEM 默认「单个应用」让用户去 launcher 选 app
-     * 导致 Roam 最小化录不到自己内容。
-     *
-     * 用户允许后,MainActivity.mediaProjectionLauncher callback 会启动 ScreenRecorderService。
-     */
-    @JavascriptInterface
-    fun startRecording() {
-        Log.d(TAG, "startRecording() 被 JS 调用")
-        activity.runOnUiThread {
-            val mpm = activity.getSystemService(android.content.Context.MEDIA_PROJECTION_SERVICE)
-                as android.media.projection.MediaProjectionManager
-            val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                // API 34+:强制全屏录制(规避 MagicOS 默认单 app 让用户切换的问题)
-                val config = android.media.projection.MediaProjectionConfig
-                    .createConfigForDefaultDisplay()
-                mpm.createScreenCaptureIntent(config)
-            } else {
-                mpm.createScreenCaptureIntent()
-            }
-            mediaProjectionLauncher.launch(intent)
-        }
-    }
-
-    /** H7 录屏 — 停止 ForegroundService */
-    @JavascriptInterface
-    fun stopRecording() {
-        Log.d(TAG, "stopRecording() 被 JS 调用")
-        activity.runOnUiThread {
-            activity.stopService(Intent(activity, ScreenRecorderService::class.java))
-        }
-    }
+    // 录屏不走 Native:ADR-006 改用 WebView 内 WebCodecs + mp4-muxer 直出 H.264 MP4
+    // (MediaProjection 在 MagicOS 上死循环)。原 startRecording/stopRecording +
+    // ScreenRecorderService 已随该决策移除。
 
     /** 列出本地 recordings/ 目录的媒体文件(mp4 + webm + png 截屏)— JS 端做媒体列表用 */
     @JavascriptInterface

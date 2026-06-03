@@ -12,10 +12,9 @@ import java.io.File
  *
  * 不集成微信 OpenSDK,理由见 ADR-005:个人开发者无企业资质。
  *
- * TODO M1 真机调试:
- *   - 实测微信对 video/mp4 的 EXTRA_STREAM 是否需要额外 grant flag
- *   - 实测分享后微信是否过度压缩(对比原片画质)
- *   - 如果微信不在分享面板里,排查 FileProvider authority / file_paths.xml 配置
+ * 真机验证(H8 + MVP 端到端已通过,2026-05-16):
+ *   - video/mp4 走 FLAG_GRANT_READ_URI_PERMISSION 即可,微信正常出现在分享面板
+ *   - 接收方播放正常(录屏走 WebCodecs avc1.42E01F MP4,微信原生兼容,见 ADR-006)
  */
 object ShareHelper {
 

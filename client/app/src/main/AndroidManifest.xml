@@ -6,11 +6,6 @@
          M2 阶段把依赖 vendor 进 assets/ 后可移除此权限。 -->
     <uses-permission android:name="android.permission.INTERNET" />
 
-    <!-- H7 MediaProjection 录全屏(Android 14+ 强制 ForegroundService) -->
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-
     <!-- B 路径:Roam 内置扫码(ZXing 调用相机) -->
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
@@ -48,12 +43,6 @@
                 <data android:scheme="roam" />
             </intent-filter>
         </activity>
-
-        <!-- H7 录屏 ForegroundService -->
-        <service
-            android:name=".ScreenRecorderService"
-            android:foregroundServiceType="mediaProjection"
-            android:exported="false" />
 
         <!-- H8 Share Intent 用,FileProvider 暴露 internal storage 视频文件给微信/其他 App -->
         <provider

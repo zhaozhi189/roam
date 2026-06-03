@@ -64,10 +64,6 @@ class MainActivity : ComponentActivity() {
         webView?.post { webView?.evaluateJavascript(js, null) }
     }
 
-    /**
-     * H7 MediaProjection 权限请求结果。允许后启动 ScreenRecorderService 开始录制。
-     * 用户拒绝时 resultCode = RESULT_CANCELED,不启动 service。
-     */
     /** B 路径:Roam 内置扫码(ZXing)— 扫到 roam:// 直接调 openDeepLink 跳场景 */
     private val qrScanLauncher = registerForActivityResult(
         com.journeyapps.barcodescanner.ScanContract()
@@ -97,26 +93,6 @@ class MainActivity : ComponentActivity() {
                 startActivity(intent)
             } catch (e: Exception) {
                 Log.e(TAG, "扫码后启动 deep link 失败", e)
-            }
-        }
-    }
-
-    private val mediaProjectionLauncher = registerForActivityResult(
-        ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        if (result.resultCode == Activity.RESULT_OK && result.data != null) {
-            Log.d(TAG, "MediaProjection 权限已允许,启动 ScreenRecorderService")
-            val svcIntent = Intent(this, ScreenRecorderService::class.java)
-                .putExtra(ScreenRecorderService.EXTRA_RESULT_CODE, result.resultCode)
-                .putExtra(ScreenRecorderService.EXTRA_RESULT_DATA, result.data)
-            startForegroundService(svcIntent)
-            webView?.post {
-                webView?.evaluateJavascript("window.onRecordingStarted && window.onRecordingStarted()", null)
-            }
-        } else {
-            Log.w(TAG, "MediaProjection 权限被拒绝")
-            webView?.post {
-                webView?.evaluateJavascript("window.onRecordingDenied && window.onRecordingDenied()", null)
             }
         }
     }
@@ -168,7 +144,7 @@ class MainActivity : ComponentActivity() {
                     onWebViewCreated = { wv ->
                         webView = wv
                         wv.addJavascriptInterface(
-                            RoamBridge(this@MainActivity, spzPickerLauncher, mediaProjectionLauncher, qrScanLauncher),
+                            RoamBridge(this@MainActivity, spzPickerLauncher, qrScanLauncher),
                             RoamBridge.JS_INTERFACE_NAME
                         )
                         Log.d(TAG, "WebView created and RoamBridge injected")

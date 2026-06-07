@@ -6,6 +6,40 @@
 
 ---
 
+## ⚠️ 2026-06-06 重大更新:本 ADR 的前提已被实测推翻
+
+> **本 ADR(及 ADR-011 v0.2)的核心前提「Magic7 Pro 无 GMS / 无 ARCore,真 WebXR AR 走不通」在 2026-06-06 复测中被证伪。** 下方「背景 / 决策」按当时(2026-05-31)的认知保留作历史记录,**真实现状以本节为准**。
+
+**2026-06-06 zhi 主测机 Magic7 Pro(PTP-AN10)实测**:
+
+| 检查项 | 2026-05-31(v0.2/v0.3) | 2026-06-06(本次复测) |
+|---|---|---|
+| `com.google.ar.core`(ARCore) | ❌ sideload,不完整 | ✅ **已正规安装** |
+| GMS + Play 商店(`com.google.android.gms` / `com.android.vending`) | ❌ 无 | ✅ **全套都有** |
+| Chrome | sideload 149 | ✅ 149(正规) + WebView 147 |
+| `isSessionSupported('immersive-ar')` | ✅ true | ✅ true |
+| `requestSession('immersive-ar')` | ❌ **NotSupportedError**(5 种配置全 FAIL,设备白名单硬墙) | ✅ **成功启动**(官方 `immersive-ar-session` sample START AR 蓝色可点 → 进 session → 系统弹「已关闭 Immersive AR Session」= session 真建立过) |
+
+**反转的根本原因(推断)**:5-31 测的是 **sideload** 的 ARCore 1.54 + Trichrome,过不了 Google 的设备认证(Play Integrity / ARCore 白名单);6-6 这台机已装上 **正规谷歌服务框架 + Play 商店分发的 ARCore**,设备通过了认证,`requestSession` 才放行。即「白名单硬墙」并非永久,补齐正规 GMS 即可解锁。
+
+**取证**:`doc/screenshots/2026-06-06-webxr-ar-start-button.png`(START AR 蓝色可点)、`doc/screenshots/2026-06-06-webxr-ar-session-closed.jpg`(session 关闭系统通知)。
+
+**对现状的影响**:
+
+1. **真 WebXR AR 现在在 Magic7 Pro 的 Chrome 里可行** —— 不用再「借 Pixel/米/三星」(原 ADR-011 fallback 引导文案、本文档「白名单设备」假设作废)。
+2. **但仅限 Chrome,不含 Roam WebView** —— 系统 WebView 默认不暴露 `navigator.xr`(本文档「组合策略」表最后一行的结论**依然成立**),所以真 AR 接进 Roam 必须走「Intent 跳系统 Chrome」或「Chrome Custom Tabs」,不能指望 Roam 套壳的 WebView 直接跑。详见下方决策延伸。
+3. **AR-lite / VR-imm 双 fallback 仍有价值** —— 给「没补 GMS 的纯国行机」「老设备」兜底,不作废,降级为 fallback 而非唯一选项。
+
+**落地方向(待 zhi 拍板,做的话补 v0.5 ADR)**:
+
+| 方案 | 做法 | 改动量 | 代价 |
+|---|---|---|---|
+| **B. Intent 跳系统 Chrome**(推荐起步) | 点 AR → 拉起 Chrome 打开 AR 页(GitHub Pages landing) | 几乎为零,复用现有 VR 的 enterVR 跳 Chrome 套路 | 跳出 App,AR 页内无 JS↔Kotlin bridge(录屏/分享) |
+| **A. Chrome Custom Tabs** | App 内叠一层系统 Chrome 跑 AR 页 | 加 `androidx.browser` 依赖 + 改入口 | 体验更连贯,但 Custom Tabs 不能注入 JsInterface,AR 页内仍无 bridge |
+| **C. 维持 AR-lite/VR fallback** | 不动,纯 WebGL+陀螺仪 | 0 | 不是真 AR,给无 ARCore 机兜底 |
+
+---
+
 ## 背景
 
 ADR-011 锁定 PlayCanvas WebXR 路线作为 AR 主方案,但 **2026-05-31 M8 沙盘验证明确**:
@@ -231,3 +265,4 @@ UI 细节:
 | v0.1 | 2026-05-31 | 初版,M8 沙盘验证完毕 + 确认 Magic7 上 immersive-vr / getUserMedia / DeviceOrientation 三件套可用;提议为非 ARCore 白名单设备加 AR-lite + VR-imm 双 fallback;锁定 Phase 1 优先做 AR-lite,Phase 2 看体验决定 VR-imm 是否 ship |
 | v0.2 | 2026-05-31 | 状态 Proposed → Accepted。zhi review 答复:① Phase 1 AR-lite + Phase 2 VR 都做(不等 AR-lite 体验回头);② Android 优先,iOS 留 Phase 3 不在本 ADR 范围;③ AR-lite 中 splat 跟陀螺仪转(D-mode 升级)第一版**不做**;④ UI 命名按默认「📱 AR-lite」「🥽 VR」 |
 | v0.3 | 2026-05-31 | Phase 1 + 2 实施完毕。**改动**:`MainActivity.kt` onPermissionRequest 加 `RESOURCE_VIDEO_CAPTURE` 放行 + `index.html` 新增 detectAR 三能力探测、enterARLite/exitARLite/enterVR/exitVR、arLiteState/vrState、ar-lite-controls + ar-lite-video DOM、runAuto 加 `ar-lite-start/end + vr-start/end`、onAndroidBack 优先退 AR/AR-lite/VR、onXRStart/onXREnd 按 `pcApp.xr.type` 分流(VR 不走 AR 的 hit-test/overlay)。**踩坑**:① ar-lite-controls 在 `.wrap` 内 position:fixed 被父级 stacking context 困住,移到 `body` 末尾 + inline `!important` style 才生效;② Magic OS uiautomator dump 在 WebView WebGL fullscreen 下完全看不到 DOM,只能截屏判断;③ 装新 APK 后 Magic OS 弹「应用扫描」UI 挡屏,需手动 dismiss。**重大发现**:Roam WebView **navigator.xr 完全缺失**(Chromium WebView 设计不暴露 WebXR Device API)→ VR 模式在 Roam App 里**根本启不起来**,只能在 Chrome 等真浏览器打开 Roam landing 才能用;AR-lite 是 Roam App 内唯一可用的「类 AR」体验。已在 enterVR 加 navigator.xr 检查 + 友好引导文案 |
+| v0.4 | 2026-06-06 | **⚠️ 前提反转**(详见文档顶部「2026-06-06 重大更新」)。Magic7 Pro(PTP-AN10)复测:ARCore + GMS + Play 商店现已全部正规安装,Chrome 149 实测 `requestSession('immersive-ar')` **成功启动** session(官方 immersive-ar sample START AR 蓝色可点 → 进 session → 系统弹「已关闭 Immersive AR Session」),**推翻 v0.2/v0.3 及 ADR-011 v0.2「Magic7 真 AR 走不通(白名单硬墙)」结论**。根因:5-31 测的是 sideload ARCore/Trichrome(过不了 Google 设备认证),6-6 已补正规 GMS → 认证通过。取证:`doc/screenshots/2026-06-06-webxr-ar-{start-button.png,session-closed.jpg}`。**影响**:真 AR 在本机 Chrome 可行,无需借机;但 Roam WebView 仍不暴露 navigator.xr(组合策略表末行结论不变),真 AR 接 Roam 须走 Intent 跳 Chrome / Custom Tabs(方案待 zhi 拍板,做则补 v0.5);AR-lite/VR 双 fallback 不作废,降级为无 GMS 机兜底 |

@@ -219,6 +219,9 @@ API 现成,不需要引入新依赖。
 
 ### 结论 · sideload 路径死透,设备白名单是硬墙
 
+> **⚠️ 2026-06-06 已被推翻(见 [v0.3 修订记录](#修订记录))**:本节「死透/硬墙」结论仅对 **2026-05-31 当时的 sideload 配置**成立。后来 Magic7 Pro 补装**正规 GMS + Play 商店分发的 ARCore**,设备通过 Google 认证,`requestSession('immersive-ar')` 实测**成功启动** session(Chrome 149)。即「白名单」并非永久硬墙,**正规 GMS 是钥匙,sideload 才是死路**。下表按当时认知保留作历史。
+
+
 | 路径 | 验证结果 |
 |---|---|
 | Magic7 + sideload(ARCore + Chrome + Trichrome) | ❌ **NOT POSSIBLE** —— Layer 2 白名单拒绝,与是否 sideload 无关 |
@@ -256,3 +259,4 @@ API 现成,不需要引入新依赖。
 |---|---|---|
 | v0.1 | 2026-05-22 | 初版,M7 完成 + ADR-010 自扫数据源决策后,启动 AR 真集成方案;锁定 PlayCanvas WebXR 路线 + 全套功能范围;承认 Magic7 Pro 大概率不支持 + 文档化 fallback |
 | v0.2 | 2026-05-31 | 加 M8 沙盘验证章节:Magic7 + sideload(ARCore 1.54 + Chrome 149 + Trichrome 149)实测,Layer 1 `isSessionSupported = true` 但 Layer 2 `requestSession` 全部 `NotSupportedError`(5 种配置都 FAIL),证明设备白名单是硬墙;明确「集成 ARCore 进 Roam 没用」「sideload 绕不过」「8th Wall 是唯一非商业绕过路径但要钱」,给未来 zhi 留 5 条避坑提醒;原 ADR-011 决策不变,fallback 路线即正解 |
+| v0.3 | 2026-06-06 | **⚠️ v0.2「白名单硬墙」结论被推翻**(详见 [ADR-012](ADR-012-无ARCore设备的AR降级方案-AR-lite-VR.md) 顶部「2026-06-06 重大更新」)。Magic7 Pro(PTP-AN10)复测:已补正规 GMS + Play 商店分发的 ARCore,Chrome 149 实测 `requestSession('immersive-ar')` **成功启动** session。根因:v0.2 测的是 **sideload** ARCore/Trichrome,过不了 Google 设备认证;正规 GMS 装上后认证通过,白名单即放行(并非永久硬墙)。⇒「借 Pixel/米/三星」引导可作废,真 AR 在本机 Chrome 即可跑。**但 Roam WebView 仍不暴露 navigator.xr**,真 AR 接 Roam 须经系统 Chrome(Intent / Custom Tabs)。取证:`doc/screenshots/2026-06-06-webxr-ar-{start-button.png,session-closed.jpg}` |

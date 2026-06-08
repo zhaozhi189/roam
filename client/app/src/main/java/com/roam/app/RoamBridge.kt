@@ -208,6 +208,33 @@ class RoamBridge(
     }
 
     /**
+     * 打开系统 Chrome 看真 WebXR AR。
+     * Roam WebView 不暴露 navigator.xr(Chromium 设计),真 AR 必须经 Chrome。
+     * 强制 com.android.chrome(WebXR 只 Chrome 稳),没装 Chrome 回退系统 chooser。
+     */
+    @JavascriptInterface
+    fun openInChrome(url: String) {
+        Log.d(TAG, "openInChrome: $url")
+        activity.runOnUiThread {
+            val uri = android.net.Uri.parse(url)
+            try {
+                val intent = Intent(Intent.ACTION_VIEW, uri)
+                    .setPackage("com.android.chrome")
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                activity.startActivity(intent)
+            } catch (e: android.content.ActivityNotFoundException) {
+                // 没装 Chrome → 让系统选
+                val fallback = Intent(Intent.ACTION_VIEW, uri)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                activity.startActivity(Intent.createChooser(fallback, "用什么打开 AR?"))
+            } catch (e: Exception) {
+                Log.e(TAG, "openInChrome 失败", e)
+                Toast.makeText(activity, "打开 Chrome 失败: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    /**
      * B 路径:Roam 内置扫码(ZXing 调相机)
      * 扫到 roam:// scheme → MainActivity 自动 startActivity 跳同 App
      * 扫到其他 URL → 回调 JS window.onScanResult(url) 显示

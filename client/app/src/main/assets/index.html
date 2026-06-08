@@ -389,11 +389,12 @@
         <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap;">
           <button id="ar-lite-start-btn" disabled style="flex:1;min-width:140px;padding:10px 12px;font-size:12px;background:rgba(6,182,212,0.20);border:1px solid rgba(6,182,212,0.40);color:#67E8F9;border-radius:8px;box-shadow:none;margin:0;">📱 AR-lite(相机叠加)</button>
           <button id="vr-start-btn" disabled style="flex:1;min-width:140px;padding:10px 12px;font-size:12px;background:rgba(139,92,246,0.20);border:1px solid rgba(139,92,246,0.40);color:#C4B5FD;border-radius:8px;box-shadow:none;margin:0;">🥽 VR 沉浸</button>
+          <button id="ar-real-chrome-btn" style="flex:1;min-width:140px;padding:10px 12px;font-size:12px;background:rgba(96,165,250,0.20);border:1px solid rgba(96,165,250,0.40);color:#93C5FD;border-radius:8px;box-shadow:none;margin:0;">🥽 真 AR(跳 Chrome)</button>
         </div>
         <div style="margin-top:8px;font-size:10px;color:rgba(252,211,77,0.65);line-height:1.5;">
           • <b>AR-lite</b>:后摄相机画面叠 splat,手指拖动 / 缩放(无平面检测,纯叠加)<br/>
           • <b>VR</b>:WebXR immersive-vr session,陀螺仪转头环视 splat(纯虚拟空间)<br/>
-          • <b>真 AR</b>:借朋友 Pixel / 米国际 / 三星国际,Chrome 打开 landing 同样能跑
+          • <b>真 AR</b>:点上方「🥽 真 AR(跳 Chrome)」→ 系统 Chrome 打开,设备有 ARCore 即真 AR(Magic7 补 GMS 后实测可,ADR-012 v0.4)
       </div>
       <div class="meta" style="margin-top:6px;font-size:11px;">
         <b>步骤</b>:① 启动 AR · ② 对准地面 / 桌面看到圆环 · ③ 单击屏幕放置 · ④ 双指捏合缩放 · ⑤ 单指拖动调位 · ⑥ ↺ 重置 / ✕ 退出
@@ -1044,9 +1045,20 @@
       } else if (vrBtn) {
         vrBtn.textContent = '🥽 VR 不支持';
       }
-      // 始终显示 fallback 区(只要有 AR-lite 或 VR 能力)
-      // ← Magic7 case: L1=true 是骗人的,L2 会 NotSupportedError;用户需要 fallback 兜底
-      if (hasGUM || vrOk) fallback.style.display = 'block';
+      // === 真 AR 跳 Chrome 按钮(Roam WebView 无 navigator.xr,真 AR 必须经系统 Chrome)===
+      // 2026-06-06 实测:Magic7 补正规 GMS 后 Chrome 可跑真 immersive-ar(见 ADR-012 v0.4/v0.5)
+      const realArBtn = document.getElementById('ar-real-chrome-btn');
+      if (realArBtn) {
+        realArBtn.addEventListener('click', function () {
+          let id = 'sample';
+          try { id = localStorage.getItem('roam:lastSceneId') || 'sample'; } catch (e) {}
+          const url = 'https://zhaozhi189.github.io/roam/ar.html?scene=' + encodeURIComponent(id);
+          if (window.RoamBridge && RoamBridge.openInChrome) RoamBridge.openInChrome(url);
+          else window.open(url, '_blank');
+        });
+      }
+      // 始终显示 fallback 区:真 AR 跳 Chrome 对任何设备都可用;AR-lite/VR 视能力 enable
+      fallback.style.display = 'block';
     })();
 
     // 场景就绪后 启用三个 AR 入口(真 AR / AR-lite / VR)按钮

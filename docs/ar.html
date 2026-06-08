@@ -1,0 +1,888 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>Roam · 真 AR</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #0b0b14; overflow: hidden; font-family: system-ui, -apple-system, sans-serif; }
+  #cv { width: 100vw; height: 100vh; display: block; touch-action: none; }
+
+  /* 顶部状态条(蓝字)+ 错误红字(默认隐藏) */
+  #status {
+    position: fixed; top: 8px; left: 8px; right: 8px;
+    color: #9ab8ff; font-size: 12px; line-height: 1.5; z-index: 20;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.8); pointer-events: none;
+  }
+  #warn {
+    position: fixed; top: 30px; left: 8px; right: 8px;
+    color: #FCD34D; font-size: 12px; line-height: 1.5; z-index: 20;
+    display: none; text-shadow: 0 1px 3px rgba(0,0,0,0.8); pointer-events: none;
+  }
+  #err {
+    position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    max-width: 86%; color: #fff; font-size: 14px; line-height: 1.6; z-index: 30;
+    display: none; background: rgba(40,12,16,0.92); border: 1px solid rgba(248,113,113,0.5);
+    border-radius: 12px; padding: 16px 18px; text-align: center;
+  }
+  #err .msg { color: #FCA5A5; }
+  #err button {
+    margin-top: 14px; padding: 8px 18px; font-size: 14px; cursor: pointer;
+    background: linear-gradient(135deg,#8B5CF6,#3B82F6); color: #fff;
+    border: none; border-radius: 8px; font-weight: 600;
+  }
+
+  /* AR 入口按钮(底部居中) */
+  #entry {
+    position: fixed; left: 0; right: 0; bottom: max(env(safe-area-inset-bottom), 24px);
+    z-index: 18; text-align: center; display: flex; flex-direction: column;
+    align-items: center; gap: 10px; pointer-events: none;
+  }
+  #entry button {
+    pointer-events: auto; padding: 12px 22px; font-size: 16px; font-weight: 600;
+    border-radius: 999px; border: 1px solid rgba(255,255,255,0.22);
+    background: rgba(20,30,60,0.85); color: #cdf; backdrop-filter: blur(10px);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.4); cursor: pointer; min-width: 200px;
+  }
+  #ar-start-btn { background: linear-gradient(135deg,#8B5CF6,#3B82F6); color: #fff; border: none; }
+  #ar-lite-start-btn { background: rgba(6,182,212,0.30); border-color: rgba(6,182,212,0.5); color: #67E8F9; }
+  #vr-start-btn { background: rgba(139,92,246,0.30); border-color: rgba(139,92,246,0.5); color: #C4B5FD; }
+
+  /* 真 AR session 期间的 dom-overlay(↺重置 / ✕退出 + 提示) */
+  #ar-overlay {
+    display: none; position: fixed; left: 0; right: 0;
+    bottom: max(env(safe-area-inset-bottom), 20px); z-index: 1000;
+    pointer-events: none; text-align: center;
+  }
+  #ar-overlay .bar {
+    display: inline-flex; gap: 12px; background: rgba(0,0,0,0.55);
+    backdrop-filter: blur(12px); padding: 10px 14px; border-radius: 999px;
+    border: 1px solid rgba(255,255,255,0.18); pointer-events: auto;
+  }
+  #ar-overlay button {
+    margin: 0; padding: 8px 14px; font-size: 13px; border-radius: 999px;
+    width: auto; cursor: pointer;
+  }
+  #ar-reset-btn { background: rgba(139,92,246,0.30); border: 1px solid rgba(139,92,246,0.50); color: #DDD6FE; }
+  #ar-exit-btn { background: rgba(239,68,68,0.25); border: 1px solid rgba(239,68,68,0.45); color: #F87171; }
+  #ar-hint {
+    margin-top: 10px; color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+    font-size: 13px; padding: 0 16px; line-height: 1.5;
+  }
+
+  /* AR-lite:后摄相机 feed 全屏背景(垫在 canvas 后) */
+  #ar-lite-video {
+    display: none; position: fixed; inset: 0;
+    width: 100vw; height: 100vh; object-fit: cover;
+    z-index: -1; background: #000;
+  }
+  #ar-lite-video.active { display: block; }
+  body.lite-mode { background: transparent; }
+  body.lite-mode #cv { background: transparent; }
+  /* AR-lite / VR 控制条 */
+  #fb-controls {
+    display: none; position: fixed; left: 0; right: 0;
+    bottom: max(env(safe-area-inset-bottom), 16px); z-index: 1001;
+    text-align: center; pointer-events: none;
+  }
+  #fb-controls.active { display: block; }
+  #fb-controls .bar {
+    display: inline-flex; gap: 10px; pointer-events: auto;
+    background: rgba(0,0,0,0.45); backdrop-filter: blur(10px);
+    padding: 8px 12px; border-radius: 999px; border: 1px solid rgba(255,255,255,0.12);
+  }
+  #fb-controls button {
+    margin: 0; padding: 8px 14px; font-size: 13px; cursor: pointer;
+    background: rgba(255,255,255,0.10); color: #fff;
+    border: 1px solid rgba(255,255,255,0.18); border-radius: 999px; width: auto;
+  }
+  #fb-hint {
+    margin-top: 8px; color: #fff; font-size: 12px;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.8); padding: 4px 10px;
+    background: rgba(0,0,0,0.35); display: inline-block; border-radius: 999px;
+  }
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<video id="ar-lite-video" autoplay playsinline muted></video>
+
+<div id="status">初始化…</div>
+<div id="warn"></div>
+<div id="err"></div>
+
+<!-- 三个 AR 入口按钮(detectAR 后按能力 enable) -->
+<div id="entry"></div>
+
+<!-- 真 AR session dom-overlay -->
+<div id="ar-overlay">
+  <div class="bar">
+    <button id="ar-reset-btn">↺ 重置</button>
+    <button id="ar-exit-btn">✕ 退出</button>
+  </div>
+  <div id="ar-hint">对准地面或桌面…</div>
+</div>
+
+<!-- AR-lite / VR 控制条 -->
+<div id="fb-controls">
+  <div class="bar">
+    <button id="fb-reset-btn">↺ 复位</button>
+    <button id="fb-exit-btn">✕ 退出</button>
+  </div>
+  <div id="fb-hint"></div>
+</div>
+
+<script src="vendor/playcanvas.min.js"></script>
+<script src="vendor/spz-loader-playcanvas.umd.cjs"></script>
+<script>
+/* =====================================================================
+ * Roam · Chrome 专用真 WebXR AR viewer(零 RoamBridge 依赖)
+ * 抽自 client/app/src/main/assets/index.html(已在 Magic7 真机跑通的代码)
+ *   - 场景加载:startGSplatScene / startSpzScene
+ *   - AR 全套:detectAR / enterAR / exitAR / resetAR / onXRStart / onXREnd
+ *   - fallback:enterARLite / exitARLite / enterVR / exitVR
+ * 改造:所有 RoamBridge.toast → setStatus;RoamBridge.log → console.log;去 Bridge 分支
+ * ===================================================================== */
+
+// ============================================================
+// 1. 场景映射 + ?scene= 解析
+// ============================================================
+// 6 个 demo 走 jsdelivr 指 repo 里的 assets/scenes/(不往仓库重复塞 25MB)
+// 自扫 sample 走 docs/ 同源相对路径
+const JSD = 'https://cdn.jsdelivr.net/gh/zhaozhi189/roam@main/client/app/src/main/assets/scenes/';
+const AR_SCENES = {
+  apartment: { url: JSD + 'apartment.sog',          kind: 'gsplat' },
+  guitar:    { url: JSD + 'guitar.compressed.ply',  kind: 'gsplat' },
+  spz:       { url: JSD + 'hornedlizard.spz',        kind: 'spz' },
+  skull:     { url: JSD + 'skull.sog',               kind: 'gsplat' },
+  biker:     { url: JSD + 'biker.compressed.ply',    kind: 'gsplat' },
+  sample:    { url: 'scenes/sample.compressed.ply',  kind: 'gsplat' }, // 自扫,同源
+};
+
+// 页面状态 UI helper(替代 RoamBridge.toast)
+function setStatus(s) { document.getElementById('status').textContent = s; }
+function showWarn(s) { const e = document.getElementById('warn'); e.textContent = s; e.style.display = 'block'; }
+function showErr(s) {
+  const box = document.getElementById('err');
+  box.innerHTML = '<div class="msg"></div><button onclick="location.reload()">🔁 重试</button>';
+  box.querySelector('.msg').textContent = s;
+  box.style.display = 'block';
+}
+function clearErr() { document.getElementById('err').style.display = 'none'; }
+function arHint(t) { const el = document.getElementById('ar-hint'); if (el) el.textContent = t; }
+function fbHint(t) { const el = document.getElementById('fb-hint'); if (el) el.textContent = t; }
+
+// 读 ?scene=;缺失或非法 → 默认 sample + 顶部黄字提示
+const qScene = (new URLSearchParams(location.search)).get('scene');
+let sceneId = (qScene && AR_SCENES[qScene]) ? qScene : 'sample';
+if (!qScene) showWarn('未指定场景,已载默认 sample');
+else if (!AR_SCENES[qScene]) showWarn('未知场景「' + qScene + '」,已载默认 sample');
+
+// ============================================================
+// 2. PlayCanvas 初始化(单 app + 单 camera)
+//    preserveDrawingBuffer 防黑屏(项目已知坑);alpha 让 AR 时透出 camera feed
+// ============================================================
+const canvas = document.getElementById('cv');
+const app = new pc.Application(canvas, {
+  graphicsDeviceOptions: { preserveDrawingBuffer: true, alpha: true },
+});
+app.setCanvasFillMode(pc.FILLMODE_FILL_WINDOW);
+app.setCanvasResolution(pc.RESOLUTION_AUTO);
+window.addEventListener('resize', () => app.resizeCanvas());
+
+// 2D orbit 用深色背景;进 AR 时切透明(透出真实世界)
+const ORBIT_CLEAR = new pc.Color(0.04, 0.06, 0.12, 1);
+const camera = new pc.Entity('camera');
+camera.addComponent('camera', { clearColor: ORBIT_CLEAR.clone() });
+camera.setPosition(0, 0, 3);
+app.root.addChild(camera);
+function cameraComp() { return camera.camera; }
+
+// 一盏方向光(gsplat 不吃光,但 cube/reticle 等 standard material 需要)
+const light = new pc.Entity('light');
+light.addComponent('light', { type: 'directional' });
+light.setEulerAngles(45, 30, 0);
+app.root.addChild(light);
+
+app.start();
+
+// ============================================================
+// 2b. 最简 orbit 相机控制(单指拖 yaw/pitch · 双指捏 zoom · 双击复位)
+//     抄自 index.html setupCameraOrbitOrIndoor + attachOrbitTouch(简化为纯 orbit)
+//     设备完全不支持 AR 时靠它 2D 看 splat 兜底
+// ============================================================
+const orbit = {
+  center: new pc.Vec3(0, 0, 0),
+  radius: 3,
+  yaw: 0,
+  pitch: -0.2,
+  init: null,            // 复位基准
+  autoRotate: true,
+  lastInteractMs: 0,
+  AUTO_RESUME_MS: 3000,
+  AUTO_SPEED: 0.25,
+  enabled: true,         // 进 AR/AR-lite/VR 时关闭(由各模式自管相机)
+};
+orbit.init = { yaw: orbit.yaw, pitch: orbit.pitch, radius: orbit.radius };
+
+function setupOrbit(center, radius) {
+  orbit.center = center.clone();
+  orbit.radius = radius;
+  orbit.yaw = 0;
+  orbit.pitch = -0.2;
+  orbit.init = { yaw: orbit.yaw, pitch: orbit.pitch, radius: orbit.radius };
+  orbit.autoRotate = true;
+  orbit.lastInteractMs = 0;
+}
+
+app.on('update', (dt) => {
+  if (!orbit.enabled) return;
+  const c = orbit;
+  if (c.autoRotate || (performance.now() - c.lastInteractMs > c.AUTO_RESUME_MS)) {
+    c.yaw += dt * c.AUTO_SPEED;
+    c.autoRotate = true;
+  }
+  const cp = Math.cos(c.pitch), sp = Math.sin(c.pitch);
+  const cy = Math.cos(c.yaw), sy = Math.sin(c.yaw);
+  camera.setPosition(
+    c.center.x + c.radius * cp * cy,
+    c.center.y + c.radius * sp + c.radius * 0.15,
+    c.center.z + c.radius * cp * sy
+  );
+  camera.lookAt(c.center);
+});
+
+// orbit 触摸(只在非 XR/非 lite 模式生效)
+(function attachOrbitTouch() {
+  const PITCH_LIMIT = Math.PI / 2 - 0.05;
+  const ROT_SENS = 0.01;
+  const DBLTAP_MS = 300;
+  let lastTapMs = 0;
+  let touches = [];
+  let lastPinchDist = 0;
+  const RADIUS_MIN = () => Math.max(orbit.radius * 0.15, 0.3);
+  const RADIUS_MAX = () => orbit.init.radius * 8;
+  const getDist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+
+  function onStart(e) {
+    if (!orbit.enabled) return;
+    e.preventDefault();
+    orbit.autoRotate = false;
+    orbit.lastInteractMs = performance.now();
+    touches = Array.from(e.touches).map(t => ({ x: t.clientX, y: t.clientY }));
+    if (touches.length === 2) lastPinchDist = getDist(touches[0], touches[1]);
+    if (touches.length === 1) {
+      const now = performance.now();
+      if (now - lastTapMs < DBLTAP_MS) {
+        orbit.yaw = orbit.init.yaw;
+        orbit.pitch = orbit.init.pitch;
+        orbit.radius = orbit.init.radius;
+        orbit.autoRotate = true;
+        orbit.lastInteractMs = 0;
+        lastTapMs = 0;
+      } else { lastTapMs = now; }
+    }
+  }
+  function onMove(e) {
+    if (!orbit.enabled) return;
+    e.preventDefault();
+    orbit.lastInteractMs = performance.now();
+    const now = Array.from(e.touches).map(t => ({ x: t.clientX, y: t.clientY }));
+    if (now.length === 1 && touches.length === 1) {
+      const dx = now[0].x - touches[0].x;
+      const dy = now[0].y - touches[0].y;
+      orbit.yaw -= dx * ROT_SENS;
+      orbit.pitch += dy * ROT_SENS;     // orbit:swipe up = 仰视
+      if (orbit.pitch > PITCH_LIMIT) orbit.pitch = PITCH_LIMIT;
+      if (orbit.pitch < -PITCH_LIMIT) orbit.pitch = -PITCH_LIMIT;
+    } else if (now.length === 2 && touches.length === 2) {
+      const d = getDist(now[0], now[1]);
+      if (lastPinchDist > 0) {
+        const scale = lastPinchDist / d;
+        orbit.radius *= scale;
+        if (orbit.radius < RADIUS_MIN()) orbit.radius = RADIUS_MIN();
+        if (orbit.radius > RADIUS_MAX()) orbit.radius = RADIUS_MAX();
+      }
+      lastPinchDist = d;
+    }
+    touches = now;
+  }
+  function onEnd(e) {
+    if (!orbit.enabled) return;
+    e.preventDefault();
+    touches = Array.from(e.touches).map(t => ({ x: t.clientX, y: t.clientY }));
+    lastPinchDist = touches.length === 2 ? getDist(touches[0], touches[1]) : 0;
+    orbit.lastInteractMs = performance.now();
+  }
+  canvas.addEventListener('touchstart', onStart, { passive: false });
+  canvas.addEventListener('touchmove', onMove, { passive: false });
+  canvas.addEventListener('touchend', onEnd, { passive: false });
+  canvas.addEventListener('touchcancel', onEnd, { passive: false });
+})();
+
+// ============================================================
+// 3. 场景加载(gsplat .sog/.ply + spz 两路;最终 entity 名统一 'splat')
+//    抄自 index.html startGSplatScene(1709)/ startSpzScene(1856)
+// ============================================================
+
+// 强制 patch GSplatResource.instantiate(SPZ 走它创 entity)— 抄 index.html 1890-1916
+function applyGSplatPatch() {
+  if (!pc.GSplatResource) {
+    throw new Error('pc.GSplatResource 不存在,PlayCanvas 2.18 内部 alias 没暴露');
+  }
+  pc.GSplatResource.prototype.instantiate = function (materialOptions) {
+    try {
+      const a = pc.Application.getApplication();
+      if (!a || !a.assets) { console.error('[patch] no app/app.assets'); return null; }
+      const asset = new pc.Asset('spz-' + Date.now(), 'gsplat', null);
+      asset.resource = this;
+      asset.loaded = true;
+      asset.loading = false;
+      a.assets.add(asset);
+      const e = new pc.Entity('spz-splat');
+      e.addComponent('gsplat', { asset: asset });
+      return e;
+    } catch (err) {
+      console.error('[patch] instantiate failed:', err);
+      return null;
+    }
+  };
+  console.log('[Roam] FORCED patched GSplatResource.instantiate');
+}
+
+// 用 AABB 自适应 orbit 相机距离(gsplat 与 spz 共用)
+function fitOrbitToAABB(aabb) {
+  let center = new pc.Vec3(0, 0, 0);
+  let radius = 3;
+  if (aabb) {
+    center = aabb.center.clone();
+    radius = Math.max(aabb.halfExtents.length() * 1.8, 1.5);
+  }
+  console.log('[Roam] AABB center=', center.toString(), 'radius=', radius);
+  setupOrbit(center, radius);
+}
+
+// gsplat(.sog / .ply / .compressed.ply)— 标准 pc.Asset 'gsplat' + 30s 超时
+function loadGSplat(url) {
+  return new Promise((resolve, reject) => {
+    const asset = new pc.Asset(sceneId, 'gsplat', { url });
+    app.assets.add(asset);
+    const isRemote = /^https?:\/\//.test(url);
+    const timeoutMs = isRemote ? 30000 : 15000;
+    const timer = setTimeout(() => {
+      reject(new Error('加载超时 ' + (timeoutMs / 1000) + 's · 网络慢或 URL 不可达'));
+    }, timeoutMs);
+    asset.once('load', () => {
+      clearTimeout(timer);
+      const splat = new pc.Entity('splat');
+      splat.addComponent('gsplat', { asset });
+      app.root.addChild(splat);
+      fitOrbitToAABB(asset.resource && asset.resource.aabb);
+      resolve(splat);
+    });
+    asset.once('error', (err) => { clearTimeout(timer); reject(new Error(String(err))); });
+    app.assets.load(asset);
+  });
+}
+
+// spz — fetch arrayBuffer → patch → createGSplatEntityFromSpzAsync;entity 改名 'splat'
+async function loadSpz(url) {
+  if (!window.SpzWasmPlayCanvas || !window.SpzWasmPlayCanvas.createGSplatEntityFromSpzAsync) {
+    throw new Error('SpzWasmPlayCanvas 未加载(vendor 引入失败?)');
+  }
+  // 30s 超时包住 fetch + WASM 解码
+  const work = (async () => {
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error('SPZ fetch ' + resp.status);
+    const spzBuffer = await resp.arrayBuffer();
+    applyGSplatPatch();
+    const entity = await window.SpzWasmPlayCanvas.createGSplatEntityFromSpzAsync(
+      spzBuffer, { appId: canvas.id || 'cv' }
+    );
+    if (!entity) throw new Error('createGSplatEntityFromSpzAsync 返回 null(patch 没生效?)');
+    entity.name = 'splat';                 // 关键:AR 代码靠 findByName('splat') 定位
+    app.root.addChild(entity);
+    // AABB 自适应
+    const comp = entity.gsplat;
+    const aabb = comp && (comp.aabb || (comp.instance && comp.instance.meshInstance && comp.instance.meshInstance.aabb));
+    fitOrbitToAABB(aabb);
+    return entity;
+  })();
+  const timeout = new Promise((_, rej) => setTimeout(() => rej(new Error('SPZ 加载超时 30s')), 30000));
+  return Promise.race([work, timeout]);
+}
+
+async function loadScene() {
+  const sc = AR_SCENES[sceneId];
+  setStatus('加载 ' + sceneId + '…');
+  try {
+    if (sc.kind === 'spz') await loadSpz(sc.url);
+    else await loadGSplat(sc.url);
+    clearErr();
+    setStatus(sceneId + ' 就绪');
+  } catch (err) {
+    const msg = (err && err.message) || String(err);
+    console.error('[Roam] loadScene 失败:', err);
+    showErr('场景加载失败,检查网络\n' + msg);
+    setStatus('✗ ' + sceneId + ' 加载失败');
+  }
+}
+
+// ============================================================
+// 状态对象(抄 index.html 959-984)
+// ============================================================
+const arState = {
+  active: false, hitTestSource: null, reticle: null, reticleVisible: false,
+  placedSplat: null, savedSplatPose: null, savedClearColor: null,
+  anchor: null, touchState: null, xrListenersBound: false,
+};
+const arLiteState = { active: false, stream: null, savedClearColor: null, savedSplatPose: null };
+const vrState = { active: false, savedClearColor: null, savedSplatPose: null };
+
+// ============================================================
+// 4. detectAR — 探测 navigator.xr / immersive-ar L1 / getUserMedia / immersive-vr
+//    抄 index.html 994 的 IIFE,去 Bridge,按能力 enable 入口按钮
+// ============================================================
+(async function detectAR() {
+  const lines = [];
+  const hasXr = 'xr' in navigator;
+  lines.push('navigator.xr: ' + (hasXr ? '✓' : '✗'));
+
+  let arL1 = false;
+  if (hasXr) {
+    try { arL1 = await navigator.xr.isSessionSupported('immersive-ar'); }
+    catch (e) { lines.push('isSession(ar) err: ' + e.message); }
+  }
+  lines.push('immersive-ar: ' + (arL1 ? '✓' : '✗'));
+
+  const hasGUM = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+  lines.push('getUserMedia: ' + (hasGUM ? '✓' : '✗'));
+
+  let vrOk = false;
+  if (hasXr) {
+    try { vrOk = await navigator.xr.isSessionSupported('immersive-vr'); }
+    catch (e) {}
+  }
+  lines.push('immersive-vr: ' + (vrOk ? '✓' : '✗'));
+  console.log('[Roam] detectAR\n' + lines.join('\n'));
+
+  const entry = document.getElementById('entry');
+  function addBtn(id, text, onclick) {
+    const b = document.createElement('button');
+    b.id = id; b.textContent = text;
+    b.addEventListener('click', onclick);
+    entry.appendChild(b);
+    return b;
+  }
+
+  // immersive-ar L1 可用 → 真 AR 主按钮(L2 在 enterAR 真 requestSession 时验)
+  if (arL1) addBtn('ar-start-btn', '🥽 进入 AR', enterAR);
+  // 真 AR 不可用但有 getUserMedia → AR-lite
+  if (!arL1 && hasGUM) addBtn('ar-lite-start-btn', '📱 AR-lite(相机叠加)', enterARLite);
+  // immersive-vr 可用 → VR
+  if (vrOk) addBtn('vr-start-btn', '🥽 VR 沉浸', enterVR);
+
+  // 全不支持 → 不显示 AR 按钮,2D orbit 兜底
+  if (!arL1 && !hasGUM && !vrOk) {
+    showWarn('设备不支持 AR,请用较新的 Chrome 打开 · 仍可旋转查看');
+  }
+})();
+
+// ============================================================
+// 5. 真 AR — enterAR / exitAR / resetAR(抄 index.html 1083-1141)
+// ============================================================
+function enterAR() {
+  const splat = app.root.findByName('splat');
+  if (!splat) { alert('splat 未加载'); return; }
+  if (arState.active) return;
+  // 备份 splat pose + 相机背景(退出还原)
+  arState.savedSplatPose = {
+    pos: splat.getPosition().clone(),
+    rot: splat.getRotation().clone(),
+    scl: splat.getLocalScale().clone(),
+  };
+  const cam = cameraComp();
+  if (cam) {
+    arState.savedClearColor = cam.clearColor.clone();
+    cam.clearColor = new pc.Color(0, 0, 0, 0);  // AR 透明,透出 camera feed
+  }
+  orbit.enabled = false;
+  bindXRListenersOnce();
+  try {
+    app.xr.start(cam, pc.XRTYPE_AR, pc.XRSPACE_LOCAL_FLOOR, {
+      optionalFeatures: ['hit-test', 'plane-detection', 'anchors', 'dom-overlay'],
+      domOverlay: { root: document.getElementById('ar-overlay') },
+    });
+  } catch (e) {
+    console.error('[AR] enter failed', e);
+    const msg = mapXRError(e);
+    // requestSession 失败:不弹死,引导 fallback
+    setStatus('真 AR 启动失败:' + msg + ' · 试试 AR-lite');
+    if (cam && arState.savedClearColor) cam.clearColor = arState.savedClearColor;
+    orbit.enabled = true;
+    showFallbackAfterArFail();
+  }
+}
+
+function exitAR() {
+  if (!arState.active) return;
+  try { app.xr.end(); } catch (e) { console.error('[AR] end failed', e); }
+}
+
+function resetAR() {
+  if (!arState.active) return;
+  const splat = arState.placedSplat;
+  if (!splat) { arHint('还没放置,先单击屏幕放置场景'); return; }
+  splat.setPosition(0, 0, 0);
+  splat.setLocalScale(arState.savedSplatPose.scl);
+  arState.placedSplat = null;
+  arState.anchor = null;
+  arHint('已重置,对准平面单击重新放置');
+}
+
+function mapXRError(e) {
+  const name = e && e.name;
+  if (name === 'NotSupportedError') return '当前设备无 ARCore/ARKit 支持';
+  if (name === 'SecurityError') return '需要 https 环境';
+  if (name === 'InvalidStateError') return '已经有 AR session 在运行';
+  if (name === 'NotAllowedError') return '用户拒绝授权';
+  return (e && e.message) || String(e);
+}
+
+// 真 AR 启动失败:补出 AR-lite / VR 按钮(若设备有这些能力)
+async function showFallbackAfterArFail() {
+  const entry = document.getElementById('entry');
+  if (document.getElementById('ar-lite-start-btn') || document.getElementById('vr-start-btn')) return;
+  const hasGUM = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+  if (hasGUM) {
+    const b = document.createElement('button');
+    b.id = 'ar-lite-start-btn'; b.textContent = '📱 AR-lite(相机叠加)';
+    b.addEventListener('click', enterARLite); entry.appendChild(b);
+  }
+}
+
+// ============================================================
+// XR session 生命周期(抄 index.html 1313-1406)
+// ============================================================
+function bindXRListenersOnce() {
+  if (arState.xrListenersBound) return;
+  arState.xrListenersBound = true;
+  app.xr.on('start', onXRStart);
+  app.xr.on('end', onXREnd);
+  app.xr.on('error', (e) => {
+    console.error('[AR] xr error', e);
+    setStatus('AR 错误: ' + mapXRError(e));
+  });
+}
+
+function onXRStart() {
+  // VR session 不需要 hit-test / reticle / ar-overlay
+  if (app.xr.type === pc.XRTYPE_VR) {
+    console.log('[VR] session started');
+    return;
+  }
+  console.log('[AR] session started');
+  arState.active = true;
+  document.getElementById('ar-overlay').style.display = 'block';
+  document.getElementById('entry').style.display = 'none';
+  arHint('对准地面或桌面,等待圆环出现…');
+  // reticle(紫色 plane 占位)
+  const reticle = new pc.Entity('ar-reticle');
+  reticle.addComponent('render', { type: 'plane' });
+  reticle.setLocalScale(0.15, 0.15, 0.15);
+  const mat = new pc.StandardMaterial();
+  mat.diffuse = new pc.Color(0.55, 0.36, 0.96);
+  mat.emissive = new pc.Color(0.55, 0.36, 0.96);
+  mat.opacity = 0.6;
+  mat.blendType = pc.BLEND_NORMAL;
+  mat.useLighting = false;
+  mat.update();
+  reticle.render.material = mat;
+  reticle.enabled = false;
+  app.root.addChild(reticle);
+  arState.reticle = reticle;
+  // hit-test source(viewer 视线方向持续命中)
+  app.xr.hitTest.start({
+    spaceType: pc.XRSPACE_VIEWER,
+    callback: (err, source) => {
+      if (err) { console.error('[AR] hit-test start failed', err); return; }
+      arState.hitTestSource = source;
+      source.on('result', (position, rotation) => {
+        if (!arState.reticle) return;
+        arState.reticle.setPosition(position);
+        arState.reticle.setRotation(rotation);
+        arState.reticle.enabled = true;
+        arState.reticleVisible = true;
+        if (!arState.placedSplat) arHint('看到圆环了,单击屏幕放置场景');
+      });
+    },
+  });
+  app.xr.input.on('add', onInputAdded);
+  bindARTouch();
+}
+
+function onXREnd() {
+  if (vrState.active) {
+    console.log('[VR] session ended');
+    vrState.active = false;
+    return;
+  }
+  console.log('[AR] session ended');
+  arState.active = false;
+  document.getElementById('ar-overlay').style.display = 'none';
+  document.getElementById('entry').style.display = 'flex';
+  // 还原 splat pose
+  const splat = app.root.findByName('splat');
+  if (splat && arState.savedSplatPose) {
+    splat.setPosition(arState.savedSplatPose.pos);
+    splat.setRotation(arState.savedSplatPose.rot);
+    splat.setLocalScale(arState.savedSplatPose.scl);
+  }
+  // 还原相机背景 + 重开 orbit
+  const cam = cameraComp();
+  if (cam && arState.savedClearColor) cam.clearColor = arState.savedClearColor;
+  orbit.enabled = true;
+  if (arState.reticle) { arState.reticle.destroy(); arState.reticle = null; }
+  arState.placedSplat = null;
+  arState.anchor = null;
+  arState.hitTestSource = null;
+  arState.reticleVisible = false;
+  unbindARTouch();
+  app.xr.input.off('add', onInputAdded);
+}
+
+function onInputAdded(inputSource) {
+  inputSource.on('select', () => onARSelect());
+}
+
+function onARSelect() {
+  if (!arState.reticleVisible) { arHint('未找到平面,移动设备扫一下'); return; }
+  const splat = app.root.findByName('splat');
+  if (!splat) return;
+  splat.setPosition(arState.reticle.getPosition());
+  splat.setRotation(arState.reticle.getRotation());
+  // 默认缩到 0.5m³ 桌面体积
+  const aabb = splat.gsplat && splat.gsplat.instance && splat.gsplat.instance.meshInstance && splat.gsplat.instance.meshInstance.aabb;
+  let scl = 1;
+  if (aabb) {
+    const longest = Math.max(aabb.halfExtents.x, aabb.halfExtents.y, aabb.halfExtents.z) * 2;
+    if (longest > 0.01) scl = 0.5 / longest;
+  }
+  splat.setLocalScale(scl, scl, scl);
+  arState.placedSplat = splat;
+  // anchor(若 session 支持)
+  if (app.xr.anchors && app.xr.anchors.supported) {
+    app.xr.anchors.create(arState.reticle.getPosition(), arState.reticle.getRotation(), (err, anchor) => {
+      if (!err && anchor) { arState.anchor = anchor; console.log('[AR] anchor created'); }
+    });
+  }
+  arHint('已放置 · 双指捏合缩放 · 单指拖动调位');
+}
+
+// 触摸手势:双指捏合缩放 + 单指拖动重 hit-test(抄 index.html 1441-1497)
+function bindARTouch() {
+  arState.touchState = { mode: 'idle', startDist: 0, startScale: 1 };
+  canvas.addEventListener('touchstart', arOnTouchStart, { passive: false });
+  canvas.addEventListener('touchmove', arOnTouchMove, { passive: false });
+  canvas.addEventListener('touchend', arOnTouchEnd, { passive: false });
+}
+function unbindARTouch() {
+  canvas.removeEventListener('touchstart', arOnTouchStart);
+  canvas.removeEventListener('touchmove', arOnTouchMove);
+  canvas.removeEventListener('touchend', arOnTouchEnd);
+}
+function arTouchDist(touches) {
+  const dx = touches[0].clientX - touches[1].clientX;
+  const dy = touches[0].clientY - touches[1].clientY;
+  return Math.sqrt(dx * dx + dy * dy);
+}
+function arOnTouchStart(e) {
+  if (!arState.active) return;
+  const splat = arState.placedSplat;
+  const ts = arState.touchState;
+  if (e.touches.length === 2 && splat) {
+    e.preventDefault();
+    ts.mode = 'pinch';
+    ts.startDist = arTouchDist(e.touches);
+    ts.startScale = splat.getLocalScale().x;
+  } else if (e.touches.length === 1 && splat) {
+    ts.mode = 'drag';
+  }
+}
+function arOnTouchMove(e) {
+  if (!arState.active) return;
+  const ts = arState.touchState;
+  const splat = arState.placedSplat;
+  if (!ts || !splat) return;
+  if (ts.mode === 'pinch' && e.touches.length === 2) {
+    e.preventDefault();
+    const d = arTouchDist(e.touches);
+    const ratio = d / Math.max(ts.startDist, 1);
+    const newScl = Math.max(0.05, Math.min(5, ts.startScale * ratio));
+    splat.setLocalScale(newScl, newScl, newScl);
+  } else if (ts.mode === 'drag' && e.touches.length === 1) {
+    if (arState.reticleVisible && arState.reticle) {
+      splat.setPosition(arState.reticle.getPosition());
+      splat.setRotation(arState.reticle.getRotation());
+    }
+  }
+}
+function arOnTouchEnd(e) {
+  if (!arState.active) return;
+  if (arState.touchState) arState.touchState.mode = 'idle';
+}
+
+// ============================================================
+// 6. fallback — AR-lite(getUserMedia 后摄叠加,无 SLAM)
+//    抄 index.html 1147-1234,去 Bridge,沿用 orbit 控制转视角
+// ============================================================
+async function enterARLite() {
+  const splat = app.root.findByName('splat');
+  if (!splat) { alert('splat 未加载'); return; }
+  if (arLiteState.active || arState.active || vrState.active) return;
+  try {
+    arLiteState.stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } },
+      audio: false,
+    });
+    const video = document.getElementById('ar-lite-video');
+    video.srcObject = arLiteState.stream;
+    video.classList.add('active');
+    // 备份 + 相机透明(透出 camera feed)
+    arLiteState.savedSplatPose = {
+      pos: splat.getPosition().clone(),
+      rot: splat.getRotation().clone(),
+      scl: splat.getLocalScale().clone(),
+    };
+    const cam = cameraComp();
+    if (cam) {
+      arLiteState.savedClearColor = cam.clearColor.clone();
+      cam.clearColor = new pc.Color(0, 0, 0, 0);
+    }
+    document.body.classList.add('lite-mode');
+    document.getElementById('entry').style.display = 'none';
+    showFbControls('📱 AR-lite · 单指转视角 · 双指捏缩放');
+    arLiteState.active = true;
+    setStatus('AR-lite 启动 · 单指拖 / 双指捏');
+  } catch (e) {
+    console.error('[AR-lite] enter failed', e);
+    const msg = (e && e.name === 'NotAllowedError') ? '相机权限被拒' : ((e && e.message) || String(e));
+    alert('AR-lite 启动失败: ' + msg);
+    exitARLite();
+  }
+}
+
+function exitARLite() {
+  if (arLiteState.stream) {
+    arLiteState.stream.getTracks().forEach((t) => t.stop());
+    arLiteState.stream = null;
+  }
+  const video = document.getElementById('ar-lite-video');
+  video.srcObject = null;
+  video.classList.remove('active');
+  if (!arLiteState.active) return;
+  // 还原 splat pose
+  const splat = app.root.findByName('splat');
+  if (splat && arLiteState.savedSplatPose) {
+    splat.setPosition(arLiteState.savedSplatPose.pos);
+    splat.setRotation(arLiteState.savedSplatPose.rot);
+    splat.setLocalScale(arLiteState.savedSplatPose.scl);
+  }
+  const cam = cameraComp();
+  if (cam && arLiteState.savedClearColor) cam.clearColor = arLiteState.savedClearColor;
+  arLiteState.savedClearColor = null;
+  arLiteState.savedSplatPose = null;
+  document.body.classList.remove('lite-mode');
+  hideFbControls();
+  document.getElementById('entry').style.display = 'flex';
+  arLiteState.active = false;
+}
+
+// ============================================================
+// 7. fallback — VR(WebXR immersive-vr session)
+//    抄 index.html 1250-1310,去 Bridge
+// ============================================================
+function enterVR() {
+  if (!('xr' in navigator)) { alert('当前浏览器不支持 WebXR VR'); return; }
+  const splat = app.root.findByName('splat');
+  if (!splat) { alert('splat 未加载'); return; }
+  if (vrState.active || arState.active || arLiteState.active) return;
+  vrState.savedSplatPose = {
+    pos: splat.getPosition().clone(),
+    rot: splat.getRotation().clone(),
+    scl: splat.getLocalScale().clone(),
+  };
+  const cam = cameraComp();
+  if (cam) {
+    vrState.savedClearColor = cam.clearColor.clone();
+    cam.clearColor = new pc.Color(0.02, 0.02, 0.05, 1);  // VR 无 camera feed,黑底
+  }
+  orbit.enabled = false;
+  bindXRListenersOnce();
+  try {
+    app.xr.start(cam, pc.XRTYPE_VR, pc.XRSPACE_LOCAL, {});
+    vrState.active = true;
+    document.getElementById('entry').style.display = 'none';
+    showFbControls('🥽 VR · 转动手机环视');
+    setStatus('VR 启动 · 转动手机环视');
+  } catch (e) {
+    console.error('[VR] enter failed', e);
+    alert('VR 启动失败: ' + ((e && e.message) || String(e)));
+    if (cam && vrState.savedClearColor) cam.clearColor = vrState.savedClearColor;
+    orbit.enabled = true;
+    vrState.active = false;
+  }
+}
+
+function exitVR() {
+  if (!vrState.active) return;
+  try { app.xr.end(); } catch (e) { console.error('[VR] end failed', e); }
+  const splat = app.root.findByName('splat');
+  if (splat && vrState.savedSplatPose) {
+    splat.setPosition(vrState.savedSplatPose.pos);
+    splat.setRotation(vrState.savedSplatPose.rot);
+    splat.setLocalScale(vrState.savedSplatPose.scl);
+  }
+  const cam = cameraComp();
+  if (cam && vrState.savedClearColor) cam.clearColor = vrState.savedClearColor;
+  vrState.savedClearColor = null;
+  vrState.savedSplatPose = null;
+  orbit.enabled = true;
+  document.getElementById('entry').style.display = 'flex';
+  hideFbControls();
+  vrState.active = false;
+}
+
+// AR-lite / VR 共用控制条
+function showFbControls(hint) {
+  fbHint(hint);
+  document.getElementById('fb-controls').classList.add('active');
+}
+function hideFbControls() {
+  document.getElementById('fb-controls').classList.remove('active');
+}
+function fbReset() {
+  // 复位:重新摆 splat(回 orbit 中心 + 默认 scale)
+  const splat = app.root.findByName('splat');
+  if (!splat) return;
+  splat.setPosition(orbit.center);
+  splat.setRotation(new pc.Quat());
+  splat.setLocalScale(1, 1, 1);
+}
+function fbExit() {
+  if (arLiteState.active) exitARLite();
+  else if (vrState.active) exitVR();
+}
+
+// ============================================================
+// 控件绑定 + 启动场景加载
+// ============================================================
+document.getElementById('ar-reset-btn').addEventListener('click', resetAR);
+document.getElementById('ar-exit-btn').addEventListener('click', exitAR);
+document.getElementById('fb-reset-btn').addEventListener('click', fbReset);
+document.getElementById('fb-exit-btn').addEventListener('click', fbExit);
+
+loadScene();
+</script>
+</body>
+</html>

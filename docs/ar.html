@@ -507,6 +507,7 @@ function enterAR() {
     cam.clearColor = new pc.Color(0, 0, 0, 0);  // AR 透明,透出 camera feed
   }
   orbit.enabled = false;
+  arState.pending = true;   // 标记"正在尝试 AR",失败由 app.xr.on('error') 回滚
   bindXRListenersOnce();
   try {
     app.xr.start(cam, pc.XRTYPE_AR, pc.XRSPACE_LOCAL, {
@@ -514,11 +515,12 @@ function enterAR() {
       domOverlay: { root: document.getElementById('ar-overlay') },
     });
   } catch (e) {
+    // 同步异常(少数);多数 requestSession 失败走异步 app.xr.on('error')
     console.error('[AR] enter failed', e);
+    arState.pending = false;
     const msg = mapXRError(e);
-    // requestSession 失败:不弹死,引导 fallback
     setStatus('真 AR 启动失败:' + msg + ' · 试试 AR-lite');
-    if (cam && arState.savedClearColor) cam.clearColor = arState.savedClearColor;
+    if (cam && arState.savedClearColor) { cam.clearColor = arState.savedClearColor; arState.savedClearColor = null; }
     orbit.enabled = true;
     showFallbackAfterArFail();
   }
@@ -570,19 +572,44 @@ function bindXRListenersOnce() {
   app.xr.on('start', onXRStart);
   app.xr.on('end', onXREnd);
   app.xr.on('error', (e) => {
-    console.error('[AR] xr error', e);
+    console.error('[XR] error', e);
     // 诊断:显示原始 name + message(临时,定位真实失败原因)
     setStatus('AR 错误: ' + mapXRError(e) + ' 〔raw: ' + (e && e.name) + ' / ' + (e && e.message) + '〕');
+    // 异步失败回滚:requestSession 的 reject 多经此异步上报(同步 catch 抓不到)。
+    // 不回滚的话相机背景卡透明、orbit 卡禁用、entry 隐藏 → 用户卡死只能 reload。
+    const cam = cameraComp();
+    if (arState.pending) {            // 真 AR 启动失败(Magic7 L1 isSessionSupported 骗人 / L2 reject)
+      arState.pending = false;
+      if (cam && arState.savedClearColor) { cam.clearColor = arState.savedClearColor; arState.savedClearColor = null; }
+      orbit.enabled = true;
+      document.getElementById('ar-overlay').style.display = 'none';
+      document.getElementById('entry').style.display = 'flex';
+      showFallbackAfterArFail();     // 补出 AR-lite/VR 按钮兜底
+    }
+    if (vrState.pending) {            // VR 启动失败
+      vrState.pending = false;
+      if (cam && vrState.savedClearColor) { cam.clearColor = vrState.savedClearColor; vrState.savedClearColor = null; }
+      orbit.enabled = true;
+      document.getElementById('entry').style.display = 'flex';
+    }
   });
 }
 
 function onXRStart() {
   // VR session 不需要 hit-test / reticle / ar-overlay
+  // 注:active + UI 切换在此处异步置(session 真起来后),enterVR/enterAR 只置 pending,
+  //    这样 start 异步失败时不会留下半切的 UI(由 error handler 回滚 pending)。
   if (app.xr.type === pc.XRTYPE_VR) {
     console.log('[VR] session started');
+    vrState.pending = false;
+    vrState.active = true;
+    document.getElementById('entry').style.display = 'none';
+    showFbControls('🥽 VR · 转动手机环视');
+    setStatus('VR 启动 · 转动手机环视');
     return;
   }
   console.log('[AR] session started');
+  arState.pending = false;
   arState.active = true;
   document.getElementById('ar-overlay').style.display = 'block';
   document.getElementById('entry').style.display = 'none';
@@ -623,8 +650,22 @@ function onXRStart() {
 }
 
 function onXREnd() {
+  const cam0 = cameraComp();
+  // VR 退出:清理统一在此(exitVR 只调 app.xr.end(),不再同步还原 → 避免时序错乱掉进 AR 分支)
   if (vrState.active) {
     console.log('[VR] session ended');
+    const splatV = app.root.findByName('splat');
+    if (splatV && vrState.savedSplatPose) {
+      splatV.setPosition(vrState.savedSplatPose.pos);
+      splatV.setRotation(vrState.savedSplatPose.rot);
+      splatV.setLocalScale(vrState.savedSplatPose.scl);
+    }
+    if (cam0 && vrState.savedClearColor) cam0.clearColor = vrState.savedClearColor;
+    vrState.savedClearColor = null;
+    vrState.savedSplatPose = null;
+    orbit.enabled = true;
+    document.getElementById('entry').style.display = 'flex';
+    hideFbControls();
     vrState.active = false;
     return;
   }
@@ -819,39 +860,25 @@ function enterVR() {
     cam.clearColor = new pc.Color(0.02, 0.02, 0.05, 1);  // VR 无 camera feed,黑底
   }
   orbit.enabled = false;
+  vrState.pending = true;   // active + UI 切换移到 onXRStart;失败由 error handler 回滚
   bindXRListenersOnce();
   try {
     app.xr.start(cam, pc.XRTYPE_VR, pc.XRSPACE_LOCAL, {});
-    vrState.active = true;
-    document.getElementById('entry').style.display = 'none';
-    showFbControls('🥽 VR · 转动手机环视');
-    setStatus('VR 启动 · 转动手机环视');
   } catch (e) {
+    // 同步异常(少数);多数失败走异步 app.xr.on('error')
     console.error('[VR] enter failed', e);
+    vrState.pending = false;
     alert('VR 启动失败: ' + ((e && e.message) || String(e)));
-    if (cam && vrState.savedClearColor) cam.clearColor = vrState.savedClearColor;
+    if (cam && vrState.savedClearColor) { cam.clearColor = vrState.savedClearColor; vrState.savedClearColor = null; }
     orbit.enabled = true;
-    vrState.active = false;
   }
 }
 
 function exitVR() {
   if (!vrState.active) return;
+  // 清理统一交给 onXREnd(app.xr.end 异步触发 'end' 事件),这里只请求结束。
+  // 不再同步还原:否则同步置 active=false 会让异步 onXREnd 错判成 AR 退出分支。
   try { app.xr.end(); } catch (e) { console.error('[VR] end failed', e); }
-  const splat = app.root.findByName('splat');
-  if (splat && vrState.savedSplatPose) {
-    splat.setPosition(vrState.savedSplatPose.pos);
-    splat.setRotation(vrState.savedSplatPose.rot);
-    splat.setLocalScale(vrState.savedSplatPose.scl);
-  }
-  const cam = cameraComp();
-  if (cam && vrState.savedClearColor) cam.clearColor = vrState.savedClearColor;
-  vrState.savedClearColor = null;
-  vrState.savedSplatPose = null;
-  orbit.enabled = true;
-  document.getElementById('entry').style.display = 'flex';
-  hideFbControls();
-  vrState.active = false;
 }
 
 // AR-lite / VR 共用控制条

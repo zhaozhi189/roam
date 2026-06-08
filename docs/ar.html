@@ -509,7 +509,7 @@ function enterAR() {
   orbit.enabled = false;
   bindXRListenersOnce();
   try {
-    app.xr.start(cam, pc.XRTYPE_AR, pc.XRSPACE_LOCAL_FLOOR, {
+    app.xr.start(cam, pc.XRTYPE_AR, pc.XRSPACE_LOCAL, {
       optionalFeatures: ['hit-test', 'plane-detection', 'anchors', 'dom-overlay'],
       domOverlay: { root: document.getElementById('ar-overlay') },
     });
@@ -571,7 +571,8 @@ function bindXRListenersOnce() {
   app.xr.on('end', onXREnd);
   app.xr.on('error', (e) => {
     console.error('[AR] xr error', e);
-    setStatus('AR 错误: ' + mapXRError(e));
+    // 诊断:显示原始 name + message(临时,定位真实失败原因)
+    setStatus('AR 错误: ' + mapXRError(e) + ' 〔raw: ' + (e && e.name) + ' / ' + (e && e.message) + '〕');
   });
 }
 

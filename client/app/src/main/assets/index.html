@@ -2500,9 +2500,20 @@
         composite.width = w; composite.height = h;
         const cctx = composite.getContext('2d');
         recCompositeStop = false;
+        // AR-lite 时相机 feed 是独立 <video> 垫在透明 canvas 后,只画 canvas 录出来背景全黑
+        // → 每帧先把 video 以 cover 裁切画底(与屏幕 object-fit:cover 显示一致),再叠 splat canvas
+        const liteVideo = document.getElementById('ar-lite-video');
+        function drawCoverVideo() {
+          const vw = liteVideo.videoWidth, vh = liteVideo.videoHeight;
+          if (!vw || !vh) return;
+          const scale = Math.max(w / vw, h / vh);
+          const dw = vw * scale, dh = vh * scale;
+          cctx.drawImage(liteVideo, (w - dw) / 2, (h - dh) / 2, dw, dh);
+        }
         function drawComposite() {
           if (recCompositeStop) return;
           try {
+            if (arLiteState.active) drawCoverVideo();
             cctx.drawImage(canvas, 0, 0, w, h);
             // 水印:右下角半透白「Roam · 即境」
             const fz = Math.max(16, Math.floor(h * 0.025));
@@ -2922,7 +2933,25 @@
       flash.classList.add('flash');
       setTimeout(() => flash.classList.remove('flash'), 80);
       try {
-        const dataUrl = canvas.toDataURL('image/png');
+        let dataUrl;
+        if (arLiteState.active) {
+          // AR-lite:canvas 透明、相机 feed 在独立 <video>,直接 toDataURL 背景全黑
+          // → 临时 canvas 先画 video(cover 裁切)再叠 splat
+          const liteVideo = document.getElementById('ar-lite-video');
+          const w = canvas.width, h = canvas.height;
+          const tmp = document.createElement('canvas');
+          tmp.width = w; tmp.height = h;
+          const tctx = tmp.getContext('2d');
+          const vw = liteVideo.videoWidth, vh = liteVideo.videoHeight;
+          if (vw && vh) {
+            const scale = Math.max(w / vw, h / vh);
+            tctx.drawImage(liteVideo, (w - vw * scale) / 2, (h - vh * scale) / 2, vw * scale, vh * scale);
+          }
+          tctx.drawImage(canvas, 0, 0, w, h);
+          dataUrl = tmp.toDataURL('image/png');
+        } else {
+          dataUrl = canvas.toDataURL('image/png');
+        }
         const base64 = dataUrl.split(',', 2)[1];
         if (!base64) throw new Error('toDataURL 返回空(WebGL preserveDrawingBuffer?)');
         const ts = new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14);

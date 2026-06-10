@@ -86,9 +86,11 @@ adb shell am start -W -a android.intent.action.VIEW -d "roam://scene/apartment"
 ```
 
 ### 调试日志
-- **MagicOS 屏蔽第三方 App logcat + 屏蔽进程 PID**(实测)→ Chrome remote devtools 也接不上
+- **MagicOS 屏蔽第三方 App logcat + 屏蔽进程 PID**(实测)→ App WebView 的 remote devtools 接不上
+- **但系统 Chrome 的 DevTools 可用!**(2026-06-10 实测):`adb forward tcp:9222 localabstract:chrome_devtools_remote` → `curl localhost:9222/json` 拿 page id → CDP websocket 可读 console、`Runtime.evaluate`(带 `userGesture:true` 可代点按钮、裸调 `requestSession` 拿真实 reject 原因)。调 ar.html 全靠它
 - 错误用 `console.error` 写到 #pc-status 红字 + `RoamBridge.toast` 弹窗
 - 截屏诊断:`adb exec-out screencap -p > /tmp/x.png`
+- UI 精确点击:`adb shell uiautomator dump /sdcard/ui.xml` 解析 bounds 后 `input tap`(估算坐标常点偏)
 
 ## 已知坑(踩过的)
 
@@ -101,6 +103,9 @@ adb shell am start -W -a android.intent.action.VIEW -d "roam://scene/apartment"
 | canvas.toDataURL 黑屏 | WebGL 默认不保留 drawing buffer | `graphicsDeviceOptions: { preserveDrawingBuffer: true }` |
 | 微信扫码 ERR_UNKNOWN_URL_SCHEME | 微信屏蔽自定义 scheme | 用 Roam 内扫码(ZXing) / 系统相机扫 / GitHub Pages landing |
 | ZXing scanQrCode 弹相机权限 | Magic7 Pro 需手动确认 | 首次提示,后续记忆 |
+| Chrome 真 AR `NotSupportedError`(曾通过) | ① MagicOS 把 ARCore force-stop + 禁关联启动,Chrome 拉不起它;② sideload ARCore 1.54 过旧,Chrome 149 要求更新而 Play 判 Magic7「不兼容」拒更 | ① 应用启动管理 → Google Play Services for AR → 关自动管理 + 三开关全开(已做,永久);② sideload 新版 ARCore(APKMirror)或真 AR 留给认证设备 |
+| PlayCanvas dom-overlay 不生效 | `start()` options 塞 `domOverlay:{root}` 不被识别,Chrome 警告 `Must specify a valid domOverlay.root` | start 前设 `app.xr.domOverlay.root = el`(PlayCanvas 自动组装 XRSessionInit) |
+| WebXR anchor 不防漂移 | `anchors.create` 后只存引用不绑事件,splat 不跟随锚点纠偏 | `anchor.on('change')` 同步 splat pose;拖动/重置/退出配套 `destroy()` 解锚,否则 splat 被拉回旧锚点 |
 
 ## 切勿擅自做的事
 

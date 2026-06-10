@@ -1121,10 +1121,11 @@
       if (!arState.active) return;
       const splat = arState.placedSplat;
       if (!splat) { arHint('还没放置,先单击屏幕放置场景'); return; }
+      destroyARAnchor();           // 先解锚,否则 anchor change 会把 splat 拉回去
       splat.setPosition(0, 0, 0);
+      splat.setRotation(arState.savedSplatPose.rot);
       splat.setLocalScale(arState.savedSplatPose.scl);
       arState.placedSplat = null;
-      arState.anchor = null;
       arHint('已重置,对准平面单击重新放置');
     }
 
@@ -1398,7 +1399,7 @@
         arState.reticle = null;
       }
       arState.placedSplat = null;
-      arState.anchor = null;
+      destroyARAnchor();
       arState.hitTestSource = null;
       arState.reticleVisible = false;
       unbindARTouch();
@@ -1407,6 +1408,31 @@
 
     function onInputAdded(inputSource) {
       inputSource.on('select', () => onARSelect());
+    }
+
+    // 销毁当前 anchor(重新放置 / 拖动 / 重置 / 退出前必调,否则 anchor change 会把 splat 拉回旧锚点)
+    function destroyARAnchor() {
+      if (!arState.anchor) return;
+      try { arState.anchor.destroy(); } catch (e) { console.error('[AR] anchor destroy failed', e); }
+      arState.anchor = null;
+    }
+
+    // 在 pos/rot 创建 anchor 并让 splat 跟随锚点(防漂移核心:ARCore 修正世界理解时锚点位姿会被纠偏)
+    function createARAnchor(pos, rot) {
+      if (!(pcApp.xr.anchors && pcApp.xr.anchors.supported)) return;
+      destroyARAnchor();
+      pcApp.xr.anchors.create(pos, rot, (err, anchor) => {
+        if (err || !anchor) { if (err) console.error('[AR] anchor create failed', err); return; }
+        arState.anchor = anchor;
+        anchor.on('change', () => {
+          const s = arState.placedSplat;
+          if (s && arState.anchor === anchor) {
+            s.setPosition(anchor.getPosition());
+            s.setRotation(anchor.getRotation());
+          }
+        });
+        console.log('[AR] anchor created · splat 已跟随锚点');
+      });
     }
 
     function onARSelect() {
@@ -1425,15 +1451,8 @@
       }
       splat.setLocalScale(scl, scl, scl);
       arState.placedSplat = splat;
-      // anchor(如果 session 支持)
-      if (pcApp.xr.anchors && pcApp.xr.anchors.supported) {
-        pcApp.xr.anchors.create(arState.reticle.getPosition(), arState.reticle.getRotation(), (err, anchor) => {
-          if (!err && anchor) {
-            arState.anchor = anchor;
-            console.log('[AR] anchor created');
-          }
-        });
-      }
+      // anchor(如果 session 支持):旧锚点销毁 + 新位置锚定 + splat 跟随
+      createARAnchor(arState.reticle.getPosition(), arState.reticle.getRotation());
       arHint('已放置 · 双指捏合缩放 · 单指拖动调位');
     }
 
@@ -1470,6 +1489,7 @@
       } else if (e.touches.length === 1 && splat) {
         // 单指拖在已放置 splat 上 → 标记 drag,等 hit-test 在 touchmove 实时更新位置
         ts.mode = 'drag';
+        destroyARAnchor();   // 用户接管定位,解除旧锚点(touchend 在新位置重锚)
       }
     }
     function arOnTouchMove(e) {
@@ -1493,7 +1513,12 @@
     }
     function arOnTouchEnd(e) {
       if (!arState.active) return;
-      if (arState.touchState) arState.touchState.mode = 'idle';
+      const ts = arState.touchState;
+      if (ts && ts.mode === 'drag' && arState.placedSplat) {
+        // 拖动结束:在新位置重建锚点,splat 继续防漂移
+        createARAnchor(arState.placedSplat.getPosition(), arState.placedSplat.getRotation());
+      }
+      if (ts) ts.mode = 'idle';
     }
 
     // floating UI 按钮

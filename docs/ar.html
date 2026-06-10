@@ -172,6 +172,9 @@ function clearErr() { document.getElementById('err').style.display = 'none'; }
 function arHint(t) { const el = document.getElementById('ar-hint'); if (el) el.textContent = t; }
 function fbHint(t) { const el = document.getElementById('fb-hint'); if (el) el.textContent = t; }
 
+// detectAR 探测结果(showFallbackAfterArFail 复用,免得二次探测)
+const xrCaps = { arL1: false, hasGUM: false, vrOk: false };
+
 // 读 ?scene=;缺失或非法 → 默认 sample + 顶部黄字提示
 const qScene = (new URLSearchParams(location.search)).get('scene');
 let sceneId = (qScene && AR_SCENES[qScene]) ? qScene : 'sample';
@@ -370,6 +373,8 @@ function loadGSplat(url) {
     const isRemote = /^https?:\/\//.test(url);
     const timeoutMs = isRemote ? 30000 : 15000;
     const timer = setTimeout(() => {
+      asset.off('load');   // 超时后摘掉监听,迟到的 load 不再把 splat 塞进已报错的场景
+      asset.off('error');
       reject(new Error('加载超时 ' + (timeoutMs / 1000) + 's · 网络慢或 URL 不可达'));
     }, timeoutMs);
     asset.once('load', () => {
@@ -464,6 +469,7 @@ const vrState = { active: false, savedClearColor: null, savedSplatPose: null };
     catch (e) {}
   }
   lines.push('immersive-vr: ' + (vrOk ? '✓' : '✗'));
+  xrCaps.arL1 = arL1; xrCaps.hasGUM = hasGUM; xrCaps.vrOk = vrOk;
   console.log('[Roam] detectAR\n' + lines.join('\n'));
 
   const entry = document.getElementById('entry');
@@ -535,10 +541,11 @@ function resetAR() {
   if (!arState.active) return;
   const splat = arState.placedSplat;
   if (!splat) { arHint('还没放置,先单击屏幕放置场景'); return; }
+  destroyARAnchor();           // 先解锚,否则 anchor change 会把 splat 拉回去
   splat.setPosition(0, 0, 0);
+  splat.setRotation(arState.savedSplatPose.rot);
   splat.setLocalScale(arState.savedSplatPose.scl);
   arState.placedSplat = null;
-  arState.anchor = null;
   arHint('已重置,对准平面单击重新放置');
 }
 
@@ -551,15 +558,18 @@ function mapXRError(e) {
   return (e && e.message) || String(e);
 }
 
-// 真 AR 启动失败:补出 AR-lite / VR 按钮(若设备有这些能力)
-async function showFallbackAfterArFail() {
+// 真 AR 启动失败:补出 AR-lite / VR 按钮(若设备有这些能力,各自独立判断)
+function showFallbackAfterArFail() {
   const entry = document.getElementById('entry');
-  if (document.getElementById('ar-lite-start-btn') || document.getElementById('vr-start-btn')) return;
-  const hasGUM = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
-  if (hasGUM) {
+  if (xrCaps.hasGUM && !document.getElementById('ar-lite-start-btn')) {
     const b = document.createElement('button');
     b.id = 'ar-lite-start-btn'; b.textContent = '📱 AR-lite(相机叠加)';
     b.addEventListener('click', enterARLite); entry.appendChild(b);
+  }
+  if (xrCaps.vrOk && !document.getElementById('vr-start-btn')) {
+    const b = document.createElement('button');
+    b.id = 'vr-start-btn'; b.textContent = '🥽 VR 沉浸';
+    b.addEventListener('click', enterVR); entry.appendChild(b);
   }
 }
 
@@ -686,7 +696,7 @@ function onXREnd() {
   orbit.enabled = true;
   if (arState.reticle) { arState.reticle.destroy(); arState.reticle = null; }
   arState.placedSplat = null;
-  arState.anchor = null;
+  destroyARAnchor();
   arState.hitTestSource = null;
   arState.reticleVisible = false;
   unbindARTouch();
@@ -695,6 +705,31 @@ function onXREnd() {
 
 function onInputAdded(inputSource) {
   inputSource.on('select', () => onARSelect());
+}
+
+// 销毁当前 anchor(重新放置 / 拖动 / 重置 / 退出前必调,否则 anchor change 会把 splat 拉回旧锚点)
+function destroyARAnchor() {
+  if (!arState.anchor) return;
+  try { arState.anchor.destroy(); } catch (e) { console.error('[AR] anchor destroy failed', e); }
+  arState.anchor = null;
+}
+
+// 在 pos/rot 创建 anchor 并让 splat 跟随锚点(防漂移核心:ARCore 修正世界理解时锚点位姿会被纠偏)
+function createARAnchor(pos, rot) {
+  if (!(app.xr.anchors && app.xr.anchors.supported)) return;
+  destroyARAnchor();
+  app.xr.anchors.create(pos, rot, (err, anchor) => {
+    if (err || !anchor) { if (err) console.error('[AR] anchor create failed', err); return; }
+    arState.anchor = anchor;
+    anchor.on('change', () => {
+      const s = arState.placedSplat;
+      if (s && arState.anchor === anchor) {
+        s.setPosition(anchor.getPosition());
+        s.setRotation(anchor.getRotation());
+      }
+    });
+    console.log('[AR] anchor created · splat 已跟随锚点');
+  });
 }
 
 function onARSelect() {
@@ -712,12 +747,8 @@ function onARSelect() {
   }
   splat.setLocalScale(scl, scl, scl);
   arState.placedSplat = splat;
-  // anchor(若 session 支持)
-  if (app.xr.anchors && app.xr.anchors.supported) {
-    app.xr.anchors.create(arState.reticle.getPosition(), arState.reticle.getRotation(), (err, anchor) => {
-      if (!err && anchor) { arState.anchor = anchor; console.log('[AR] anchor created'); }
-    });
-  }
+  // anchor(若 session 支持):旧锚点销毁 + 新位置锚定 + splat 跟随
+  createARAnchor(arState.reticle.getPosition(), arState.reticle.getRotation());
   arHint('已放置 · 双指捏合缩放 · 单指拖动调位');
 }
 
@@ -749,6 +780,7 @@ function arOnTouchStart(e) {
     ts.startScale = splat.getLocalScale().x;
   } else if (e.touches.length === 1 && splat) {
     ts.mode = 'drag';
+    destroyARAnchor();   // 用户接管定位,解除旧锚点(touchend 在新位置重锚)
   }
 }
 function arOnTouchMove(e) {
@@ -771,7 +803,12 @@ function arOnTouchMove(e) {
 }
 function arOnTouchEnd(e) {
   if (!arState.active) return;
-  if (arState.touchState) arState.touchState.mode = 'idle';
+  const ts = arState.touchState;
+  if (ts && ts.mode === 'drag' && arState.placedSplat) {
+    // 拖动结束:在新位置重建锚点,splat 继续防漂移
+    createARAnchor(arState.placedSplat.getPosition(), arState.placedSplat.getRotation());
+  }
+  if (ts) ts.mode = 'idle';
 }
 
 // ============================================================

@@ -516,9 +516,12 @@ function enterAR() {
   arState.pending = true;   // 标记"正在尝试 AR",失败由 app.xr.on('error') 回滚
   bindXRListenersOnce();
   try {
+    // dom-overlay 正确用法:start 前设 app.xr.domOverlay.root(PlayCanvas 自动组装
+    // XRSessionInit 的 domOverlay);塞 options.domOverlay 无效,Chrome 真机实锤警告
+    // "Must specify a valid domOverlay.root element in XRSessionInit"
+    if (app.xr.domOverlay) app.xr.domOverlay.root = document.getElementById('ar-overlay');
     app.xr.start(cam, pc.XRTYPE_AR, pc.XRSPACE_LOCAL, {
-      optionalFeatures: ['hit-test', 'plane-detection', 'anchors', 'dom-overlay'],
-      domOverlay: { root: document.getElementById('ar-overlay') },
+      optionalFeatures: ['hit-test', 'plane-detection', 'anchors'],
     });
   } catch (e) {
     // 同步异常(少数);多数 requestSession 失败走异步 app.xr.on('error')

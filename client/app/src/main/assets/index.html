@@ -1099,9 +1099,11 @@
       }
       bindXRListenersOnce();
       try {
+        // dom-overlay 正确用法:start 前设 pcApp.xr.domOverlay.root(PlayCanvas 自动组装
+        // XRSessionInit);塞 options.domOverlay 无效,Chrome 真机实锤警告(2026-06-10)
+        if (pcApp.xr.domOverlay) pcApp.xr.domOverlay.root = document.getElementById('ar-overlay');
         pcApp.xr.start(cam, pc.XRTYPE_AR, pc.XRSPACE_LOCAL_FLOOR, {
-          optionalFeatures: ['hit-test', 'plane-detection', 'anchors', 'dom-overlay'],
-          domOverlay: { root: document.getElementById('ar-overlay') },
+          optionalFeatures: ['hit-test', 'plane-detection', 'anchors'],
         });
       } catch (e) {
         console.error('[AR] enter failed', e);

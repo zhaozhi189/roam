@@ -1708,9 +1708,17 @@
     let currentSceneTag = 'cube';
     function setCurrentScene(tag, displayName) {
       currentSceneTag = (tag || 'scene').replace(/[^a-zA-Z0-9_-]/g, '-').toLowerCase().slice(0, 24) || 'scene';
-      // M9·F-09 · 切场景后旧关键点的 center/radius 失效,自动清空运镜路径
+      // M9 · 切场景统一清理:旧 cam 引用作废(立方体 starter 不走 setupCameraOrbitOrIndoor,
+      // 不清的话运镜/打点会对着已 destroy 的旧场景操作)→ gsplat 场景稍后由 setup 重新赋值
+      currentCam = null;
+      // M9·F-09 · 旧关键点的 center/radius 失效,自动清空运镜路径(含中断播放)
       kfClearPath(true);
-      // M9·F-10 · 换场景:卸旧 splat 引用 + 载入该场景已存标注(localStorage)
+      kfUpdateUI();   // kfClearPath 空路径时早退,这里强制刷新(currentCam 已变 null → 记点禁用)
+      // M9·F-10 · 退出打点模式 + 藏按钮(gsplat 场景由 setupCameraOrbitOrIndoor 重新显示)
+      markPlacing = false;
+      const mkbtn0 = document.getElementById('pc-mark-btn');
+      if (mkbtn0) { mkbtn0.style.display = 'none'; mkbtn0.classList.remove('active'); }
+      // 卸旧 splat 引用 + 载入该场景已存标注(localStorage)
       currentSplatResource = null;
       markersLoadForScene();
       const chip = document.getElementById('pc-scene-chip');
@@ -2425,9 +2433,9 @@
         const gb = document.getElementById('gif-btn');
         if (gb) gb.disabled = false;
       }
-      // M9·F-09 · 场景就绪后才能记运镜点
+      // M9·F-09 · 场景就绪且有 orbit 相机才能记运镜点(立方体场景 currentCam 为 null)
       const kab = document.getElementById('kf-add-btn');
-      if (kab) kab.disabled = false;
+      if (kab) kab.disabled = !currentCam;
     }
 
     recStartBtn.addEventListener('click', startWebCodecsRecording);
@@ -2769,8 +2777,9 @@
     }
 
     function kfClearPath(silent) {
-      if (!kfPath.length) return;
+      if (!kfPath.length && !kfPlaying) return;
       kfPath = [];
+      kfPlaying = false;   // 播放中被清(如切场景)→ 中断动画,防按钮永久卡 disabled
       kfUpdateUI();
       if (!silent && window.RoamBridge && window.RoamBridge.toast) window.RoamBridge.toast('运镜路径已清空');
     }
@@ -2812,6 +2821,13 @@
         const t0 = performance.now();
         const FIELDS = ['yaw', 'pitch', 'radius', 'fov', 'cx', 'cy', 'cz'];
         function step() {
+          // 播放中路径被外部清空(切场景调 kfClearPath)→ 安全终止,不能让 at() 访问空数组
+          if (!kfPlaying || kfPath.length < 2) {
+            kfPlaying = false;
+            kfUpdateUI();
+            resolve(false);
+            return;
+          }
           const u = Math.min(1, (performance.now() - t0) / totalMs) * (kfPath.length - 1);
           const i = Math.min(kfPath.length - 2, Math.floor(u));
           const s = u - i;

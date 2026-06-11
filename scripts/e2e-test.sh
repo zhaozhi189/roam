@@ -88,6 +88,44 @@ adb shell am broadcast -a com.roam.app.AUTO --es cmd list > /dev/null
 sleep 1
 shot "rec-after-stop-list"
 
+# Section 6b · M9 三件套:GIF 导出 + 运镜路径 + 打点标注
+echo ""
+echo "[6b] M9 · GIF 导出(3s 抓帧 + 编码约 5s)"
+adb shell am broadcast -a com.roam.app.AUTO --es cmd guitar > /dev/null
+sleep 4
+adb shell am broadcast -a com.roam.app.AUTO --es cmd gif > /dev/null
+sleep 7   # 抓帧 3s + 编码 + 落盘
+adb shell am broadcast -a com.roam.app.AUTO --es cmd list > /dev/null
+sleep 1
+shot "m9-gif-in-list"
+
+echo ""
+echo "[6c] M9 · 运镜:记 2 点(中间拖视角)→ 录运镜(2 点 1 段 3s + 前后静止帧)"
+adb shell am broadcast -a com.roam.app.AUTO --es cmd kf-add > /dev/null
+sleep 1
+adb shell input swipe 540 800 200 700 300   # 拖一下视角,两个关键点才有差异
+sleep 1
+adb shell am broadcast -a com.roam.app.AUTO --es cmd kf-add > /dev/null
+sleep 1
+adb shell am broadcast -a com.roam.app.AUTO --es cmd kf-rec > /dev/null
+echo "  录运镜中(约 3s 路径 + 收尾)..."
+sleep 8
+adb shell am broadcast -a com.roam.app.AUTO --es cmd list > /dev/null
+sleep 1
+shot "m9-kf-rec-in-list"
+adb shell am broadcast -a com.roam.app.AUTO --es cmd kf-clear > /dev/null
+
+echo ""
+echo "[6d] M9 · 标注:屏幕中心打点 → 截屏带标签 → 清空"
+adb shell am broadcast -a com.roam.app.AUTO --es cmd mark-center > /dev/null
+sleep 1
+shot "m9-marker-on-screen"
+adb shell am broadcast -a com.roam.app.AUTO --es cmd snap > /dev/null
+sleep 1
+shot "m9-marker-snap"
+adb shell am broadcast -a com.roam.app.AUTO --es cmd mark-clear > /dev/null
+sleep 1
+
 # Section 7 · Deep link 跳场景
 echo ""
 echo "[7] Deep link roam://scene/<name>"

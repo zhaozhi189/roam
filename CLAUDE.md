@@ -66,7 +66,7 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```bash
 adb shell am start -n com.roam.app/.MainActivity --es auto apartment   # 直接进场景
 adb shell am broadcast -a com.roam.app.AUTO --es cmd guitar            # 运行中切换
-./scripts/e2e-test.sh                                                  # 一键 8 段端到端
+./scripts/e2e-test.sh                                                  # 一键 11 段端到端(含 M9 GIF/运镜/标注)
 ```
 cmd 列表(运行中):
 - 场景:`apartment / guitar / cube / spz / skull / biker`

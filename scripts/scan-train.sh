@@ -10,8 +10,13 @@
 #   ./scripts/scan-train.sh ~/Downloads/scan.mp4 /tmp/scan1 30000
 #
 # 产物:<工作目录>/export/sample_<steps>.ply
-# 压缩(CLI,免开 SuperSplat 网页):
-#   npx -y @playcanvas/splat-transform <产物.ply> <输出.compressed.ply>
+# 清理+压缩(CLI,免开 SuperSplat 网页;⚠️ 不清理的话 floater 会把
+# AABB 撑到 ±450,ar.html 自动取景缩成一个点,AR 缩放也错):
+#   npx -y @playcanvas/splat-transform -w <产物.ply> \
+#     -S <cx,cy,cz,r>            \  # 球裁剪:中心取 splat 密度中位数,r≈主体跨度
+#     -V scale_0,lt,1 -V scale_1,lt,1 -V scale_2,lt,1 \  # 去巨型拉丝高斯
+#     -V opacity,gt,0.05 -G      \  # 去低透明度雾 + GPU 体素 floater 过滤
+#     <输出.compressed.ply>
 # 再覆盖 docs/scenes/sample.compressed.ply + git push(目标 ≤30MB,ADR-003)
 #
 # ⚠️ 坑(2026-06-10 实测):brew 版 COLMAP 4.0.4 的 matcher 在 macOS 26
@@ -89,7 +94,9 @@ echo "▶ [4/4] 完成 ✅"
 echo "  产物: $PLY ($SIZE)"
 echo ""
 echo "后续:"
-echo "  1. 压缩: npx -y @playcanvas/splat-transform $PLY /tmp/sample.compressed.ply"
+echo "  1. 清理+压缩(必做,floater 不裁会毁掉自动取景,参数见脚本头注释):"
+echo "     npx -y @playcanvas/splat-transform -w $PLY -S <cx,cy,cz,r> \\"
+echo "       -V scale_0,lt,1 -V scale_1,lt,1 -V scale_2,lt,1 -V opacity,gt,0.05 -G /tmp/sample.compressed.ply"
 echo "  2. 质检: 拖进 https://supersplat.dev 看效果(或直接真机验)"
 echo "  3. cp /tmp/sample.compressed.ply docs/scenes/sample.compressed.ply && git commit && push"
 echo "  4. 真机: https://zhaozhi189.github.io/roam/ar.html?scene=sample"

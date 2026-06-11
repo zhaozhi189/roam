@@ -72,6 +72,7 @@ cmd 列表(运行中):
 - 场景:`apartment / guitar / cube / spz / skull / biker`
 - 操作:`record / stop / list / snap / scan / pick / gif`
 - 运镜(M9·F-09):`kf-add / kf-play / kf-rec / kf-clear`
+- 标注(M9·F-10):`mark / mark-center / mark-clear`
 - 二维码:`qr-apt / qr-guitar / qr-cube`
 - 视图:`immersive / reset-view`
 

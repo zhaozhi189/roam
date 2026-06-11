@@ -126,6 +126,7 @@
     #pc-canvas-wrap.fullscreen.controls-hidden #pc-fps,
     #pc-canvas-wrap.fullscreen.controls-hidden #pc-scene-chip,
     #pc-canvas-wrap.fullscreen.controls-hidden #pc-mode-btn,
+    #pc-canvas-wrap.fullscreen.controls-hidden #pc-mark-btn,
     #pc-canvas-wrap.fullscreen.controls-hidden #pc-fs-btn {
       opacity: 0;
       transition: opacity 0.5s ease-out;
@@ -133,6 +134,7 @@
     #pc-canvas-wrap.fullscreen #pc-fps,
     #pc-canvas-wrap.fullscreen #pc-scene-chip,
     #pc-canvas-wrap.fullscreen #pc-mode-btn,
+    #pc-canvas-wrap.fullscreen #pc-mark-btn,
     #pc-canvas-wrap.fullscreen #pc-fs-btn {
       transition: opacity 0.3s ease-in;
     }
@@ -216,6 +218,26 @@
       display: none;
     }
     #pc-walk-btn.active { background: rgba(34,197,94,0.7); }
+    /* M9·F-10 · 打点标注按钮(mode 按钮上方)+ 标注 overlay */
+    #pc-mark-btn {
+      position: absolute; bottom: 40px; left: 8px;
+      background: rgba(0,0,0,0.5); backdrop-filter: blur(8px);
+      padding: 4px 10px; border-radius: 999px;
+      font-size: 11px; color: #fff; border: none;
+      cursor: pointer; line-height: 1;
+      width: auto; box-shadow: none; margin: 0;
+      display: none;
+    }
+    #pc-mark-btn.active { background: rgba(139,92,246,0.8); }
+    #pc-markers { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+    .pc-marker {
+      position: absolute; transform: translate(-50%, -110%);
+      background: rgba(139,92,246,0.85); backdrop-filter: blur(4px);
+      color: #fff; padding: 3px 8px; border-radius: 8px;
+      font-size: 11px; white-space: nowrap; line-height: 1.4;
+      pointer-events: auto; cursor: pointer;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+    }
 
     .env-info {
       font-size: 11px;
@@ -261,6 +283,8 @@
       </div>
       <div id="pc-canvas-wrap">
         <canvas id="pc-canvas"></canvas>
+        <!-- M9·F-10 · 标注 overlay(每帧投影到屏幕,容器不挡触摸)-->
+        <div id="pc-markers"></div>
         <div id="pc-status">点上方按钮启动</div>
         <div id="pc-fps" style="display:none">FPS: --</div>
         <div id="pc-stats">stats</div>
@@ -268,6 +292,7 @@
         <button id="pc-fs-btn" title="沉浸模式 / 双击 canvas 复位视角">⛶</button>
         <button id="pc-mode-btn" title="室内 / 环绕 切换" style="display:none">🌍 环绕</button>
         <button id="pc-walk-btn" title="indoor 模式步行(沿视线匀速前进)">🚶 走</button>
+        <button id="pc-mark-btn" title="打点标注:点📌后再点画面位置">📌 标注</button>
       </div>
     </div>
 
@@ -1635,6 +1660,10 @@
         if (cmd === 'vr-end' || cmd === 'vr-exit') { if (typeof window.exitVR === 'function') window.exitVR(); return; }
         // ADR-010 拉远程 sample 测试桥
         if (cmd === 'pull-sample') { const b = document.getElementById('mng-pull-sample-btn'); if (b) b.click(); return; }
+        // M9·F-10 打点标注测试桥(prompt 不能 adb 驱动 → mark-center 自动命名)
+        if (cmd === 'mark') { const b = document.getElementById('pc-mark-btn'); if (b) b.click(); return; }
+        if (cmd === 'mark-center') { if (typeof markerAddCenter === 'function') markerAddCenter(); return; }
+        if (cmd === 'mark-clear') { if (typeof markersClearScene === 'function') markersClearScene(); return; }
         // 场景 cmd → sceneStarters(SCENES JSON 驱动)
         if (sceneStarters[cmd]) { sceneStarters[cmd](); return; }
         // 其他 UI 按钮 cmd → button id 映射
@@ -1681,6 +1710,9 @@
       currentSceneTag = (tag || 'scene').replace(/[^a-zA-Z0-9_-]/g, '-').toLowerCase().slice(0, 24) || 'scene';
       // M9·F-09 · 切场景后旧关键点的 center/radius 失效,自动清空运镜路径
       kfClearPath(true);
+      // M9·F-10 · 换场景:卸旧 splat 引用 + 载入该场景已存标注(localStorage)
+      currentSplatResource = null;
+      markersLoadForScene();
       const chip = document.getElementById('pc-scene-chip');
       if (chip) {
         chip.textContent = displayName || tag || 'scene';
@@ -1818,6 +1850,7 @@
         const splat = new pc.Entity('splat');
         splat.addComponent('gsplat', { asset });
         pcApp.root.addChild(splat);
+        currentSplatResource = asset.resource || null;   // M9·F-10 打点 raycast 用
 
         // 自适应:从 splat resource 拿 AABB 决定相机距离
         let center = new pc.Vec3(0, 0, 0);
@@ -1976,6 +2009,9 @@
         let center = new pc.Vec3(0, 0, 0);
         let radius = 3;
         const gsplatComp = splatEntity.gsplat;
+        // M9·F-10 打点 raycast 用(SPZ patch 路径的 resource 挂在 component 上,两条兜底链)
+        currentSplatResource = (gsplatComp && ((gsplatComp.asset && gsplatComp.asset.resource)
+          || (gsplatComp.instance && gsplatComp.instance.resource))) || null;
         const aabb = gsplatComp && (gsplatComp.aabb || (gsplatComp.instance && gsplatComp.instance.meshInstance && gsplatComp.instance.meshInstance.aabb));
         if (aabb) {
           center = aabb.center.clone();
@@ -2050,6 +2086,10 @@
         wbtn.classList.remove('active');
         wbtn.textContent = '🚶 走';
       }
+      // M9·F-10 · 场景就绪后显示打点按钮
+      const mkbtn = document.getElementById('pc-mark-btn');
+      if (mkbtn) { mkbtn.style.display = 'block'; mkbtn.classList.remove('active'); }
+      markPlacing = false;
     }
     function updateCameraEachFrame(cameraEntity, dt) {
       const c = currentCam;
@@ -2080,6 +2120,8 @@
         );
         cameraEntity.lookAt(c.center);
       }
+      // M9·F-10 · 标注跟随相机投影(所有场景共用此 update)
+      updateMarkersEachFrame(cameraEntity);
     }
     function toggleCameraMode() {
       if (!currentCam) return;
@@ -2540,6 +2582,7 @@
           try {
             if (arLiteState.active) drawCoverVideo();
             cctx.drawImage(canvas, 0, 0, w, h);
+            drawMarkersOnCtx(cctx, w, h);   // M9·F-10 标注录进视频
             // 水印:右下角半透白「Roam · 即境」
             const fz = Math.max(16, Math.floor(h * 0.025));
             cctx.font = 'bold ' + fz + 'px -apple-system, "PingFang SC", sans-serif';
@@ -2810,6 +2853,201 @@
       if (recRecording) await stopWebCodecsRecording();
     });
 
+    // ====== M9·F-10 · 打点标注(场景里插文字标签)======
+    // 3DGS 没 mesh 不能常规 raycast → tap 发射线,在 splat centers 点云里找
+    // 离射线最近的点(两档阈值,先窄后宽);无 splat 数据(立方体)退化为视线 radius 距离处。
+    // 标注按场景存 localStorage,DOM overlay 每帧投影;录屏/GIF/截屏 也画进画面。
+    let markPlacing = false;
+    let sceneMarkers = [];            // [{x,y,z,text,el}]
+    let currentSplatResource = null;  // 当前场景 splat resource(scene starter 设置)
+    let markVecA = null, markVecB = null;  // 投影临时 Vec3(lazy,避免每帧 new)
+
+    function markersStorageKey() { return 'roam:markers:' + currentSceneTag; }
+    function markersSave() {
+      try {
+        localStorage.setItem(markersStorageKey(),
+          JSON.stringify(sceneMarkers.map(m => ({ x: m.x, y: m.y, z: m.z, text: m.text }))));
+      } catch (e) {}
+    }
+    function markerAdd(x, y, z, text, save) {
+      const el = document.createElement('div');
+      el.className = 'pc-marker';
+      el.textContent = '📍 ' + text;
+      el.style.display = 'none';   // 投影前先藏,避免闪在 (0,0)
+      el.addEventListener('click', () => {
+        if (!confirm('删除标注「' + text + '」?')) return;
+        const i = sceneMarkers.findIndex(m => m.el === el);
+        if (i >= 0) sceneMarkers.splice(i, 1);
+        el.remove();
+        markersSave();
+      });
+      document.getElementById('pc-markers').appendChild(el);
+      sceneMarkers.push({ x, y, z, text, el });
+      if (save) markersSave();
+    }
+    function markersLoadForScene() {
+      sceneMarkers = [];
+      const c = document.getElementById('pc-markers');
+      while (c.firstChild) c.removeChild(c.firstChild);
+      try {
+        JSON.parse(localStorage.getItem(markersStorageKey()) || '[]')
+          .forEach(m => markerAdd(m.x, m.y, m.z, m.text, false));
+      } catch (e) {}
+    }
+    function markersClearScene() {
+      sceneMarkers = [];
+      const c = document.getElementById('pc-markers');
+      while (c.firstChild) c.removeChild(c.firstChild);
+      markersSave();
+      if (window.RoamBridge && window.RoamBridge.toast) window.RoamBridge.toast('标注已清空');
+    }
+
+    // 取当前 splat 的 centers(Float32Array xyz;某些 resource 的 getCenters 取一次即清,缓存防丢)
+    function splatCenters() {
+      const r = currentSplatResource;
+      if (!r) return null;
+      if (r._roamCenters) return r._roamCenters;
+      if (r.centers && r.centers.length) { r._roamCenters = r.centers; return r.centers; }
+      try {
+        if (r.gsplatData && r.gsplatData.getCenters) {
+          r._roamCenters = r.gsplatData.getCenters();
+          return r._roamCenters;
+        }
+      } catch (e) { console.warn('[Roam] getCenters 失败:', e); }
+      return null;
+    }
+
+    // tap(client 坐标)→ 场景 3D 点。splat entity 都挂 root 且无 transform,centers 即世界坐标
+    function pickScenePoint(clientX, clientY) {
+      const canvas = document.getElementById('pc-canvas');
+      const camEnt = currentCam && currentCam.cameraEntity;
+      if (!camEnt || !camEnt.camera) return null;
+      const rect = canvas.getBoundingClientRect();
+      const origin = camEnt.getPosition();
+      const far = new pc.Vec3();
+      camEnt.camera.screenToWorld(clientX - rect.left, clientY - rect.top, camEnt.camera.farClip || 100, far);
+      const dir = far.sub(origin).normalize();
+      const centers = splatCenters();
+      if (centers) {
+        const r0 = currentCam.initialRadius || 3;
+        for (const eps of [r0 * 0.015, r0 * 0.06]) {   // 先窄(精确点中)后宽(稀疏处兜底)
+          const e2 = eps * eps;
+          let bestT = Infinity, bi = -1;
+          for (let i = 0; i < centers.length; i += 3) {
+            const px = centers[i] - origin.x, py = centers[i + 1] - origin.y, pz = centers[i + 2] - origin.z;
+            const t = px * dir.x + py * dir.y + pz * dir.z;
+            if (t <= 0 || t >= bestT) continue;        // 相机背后 / 已有更近命中
+            const pp = px * px + py * py + pz * pz - t * t;  // 垂距²
+            if (pp < e2) { bestT = t; bi = i; }
+          }
+          if (bi >= 0) return new pc.Vec3(centers[bi], centers[bi + 1], centers[bi + 2]);
+        }
+      }
+      // 没 splat 数据(立方体场景)或没命中 → 视线方向 radius 距离处
+      return new pc.Vec3(
+        origin.x + dir.x * currentCam.radius,
+        origin.y + dir.y * currentCam.radius,
+        origin.z + dir.z * currentCam.radius);
+    }
+
+    function markerPlaceAt(clientX, clientY, autoText) {
+      const p = pickScenePoint(clientX, clientY);
+      markPlacing = false;
+      document.getElementById('pc-mark-btn').classList.remove('active');
+      if (!p) return;
+      const text = autoText || (prompt('标注内容:', '') || '').trim();
+      if (!text) return;
+      markerAdd(p.x, p.y, p.z, text, true);
+      if (window.RoamBridge && window.RoamBridge.toast) window.RoamBridge.toast('📍 已添加标注');
+    }
+
+    // 测试桥用:屏幕中心打点,自动命名(prompt 不能 adb 驱动)
+    function markerAddCenter() {
+      const rect = document.getElementById('pc-canvas').getBoundingClientRect();
+      markerPlaceAt(rect.left + rect.width / 2, rect.top + rect.height / 2,
+        '标注' + (sceneMarkers.length + 1));
+    }
+
+    document.getElementById('pc-mark-btn').addEventListener('click', () => {
+      if (!currentCam) return;
+      markPlacing = !markPlacing;
+      document.getElementById('pc-mark-btn').classList.toggle('active', markPlacing);
+      if (markPlacing && window.RoamBridge && window.RoamBridge.toast) {
+        window.RoamBridge.toast('点画面位置放标注(再点📌取消)');
+      }
+    });
+
+    // 打点 tap:touchend 位移 <12px 才算 tap(拖动调视角不触发);desktop 用 click
+    (function attachMarkerTap() {
+      const canvas = document.getElementById('pc-canvas');
+      let sx = 0, sy = 0;
+      canvas.addEventListener('touchstart', (e) => {
+        if (e.touches.length === 1) { sx = e.touches[0].clientX; sy = e.touches[0].clientY; }
+      }, true);
+      canvas.addEventListener('touchend', (e) => {
+        if (!markPlacing || e.touches.length > 0) return;
+        const t = e.changedTouches[0];
+        if (Math.hypot(t.clientX - sx, t.clientY - sy) > 12) return;
+        markerPlaceAt(t.clientX, t.clientY);
+      }, true);
+      canvas.addEventListener('click', (e) => {
+        if (markPlacing) markerPlaceAt(e.clientX, e.clientY);
+      });
+    })();
+
+    // 每帧投影标注到屏幕(updateCameraEachFrame 调,所有场景共用)
+    function updateMarkersEachFrame(cameraEntity) {
+      if (!sceneMarkers.length || !cameraEntity || !cameraEntity.camera) return;
+      markVecA = markVecA || new pc.Vec3();
+      markVecB = markVecB || new pc.Vec3();
+      const canvas = document.getElementById('pc-canvas');
+      const cw = canvas.clientWidth, ch = canvas.clientHeight;
+      const cp = cameraEntity.getPosition();
+      const fwd = cameraEntity.forward;
+      for (const m of sceneMarkers) {
+        // 相机背后不显示(worldToScreen 对背后点出镜像假坐标)
+        const behind = (m.x - cp.x) * fwd.x + (m.y - cp.y) * fwd.y + (m.z - cp.z) * fwd.z <= 0;
+        if (behind) { m.el.style.display = 'none'; continue; }
+        cameraEntity.camera.worldToScreen(markVecA.set(m.x, m.y, m.z), markVecB);
+        if (markVecB.x < -60 || markVecB.x > cw + 60 || markVecB.y < -30 || markVecB.y > ch + 30) {
+          m.el.style.display = 'none';
+          continue;
+        }
+        m.el.style.left = markVecB.x + 'px';
+        m.el.style.top = markVecB.y + 'px';
+        m.el.style.display = 'block';
+      }
+    }
+
+    // 标注画进 录屏 composite / GIF 帧 / 截屏(w,h = 目标画布像素;按 CSS 尺寸比例缩放)
+    function drawMarkersOnCtx(ctx, w, h) {
+      if (!sceneMarkers.length || !currentCam || !currentCam.cameraEntity) return;
+      const camEnt = currentCam.cameraEntity;
+      if (!camEnt.camera) return;
+      markVecA = markVecA || new pc.Vec3();
+      markVecB = markVecB || new pc.Vec3();
+      const canvas = document.getElementById('pc-canvas');
+      const sx = w / canvas.clientWidth, sy = h / canvas.clientHeight;
+      const cp = camEnt.getPosition();
+      const fwd = camEnt.forward;
+      const fz = Math.max(10, Math.floor(h * 0.022));
+      ctx.font = 'bold ' + fz + 'px -apple-system, "PingFang SC", sans-serif';
+      ctx.textBaseline = 'bottom';
+      ctx.textAlign = 'center';
+      for (const m of sceneMarkers) {
+        if ((m.x - cp.x) * fwd.x + (m.y - cp.y) * fwd.y + (m.z - cp.z) * fwd.z <= 0) continue;
+        camEnt.camera.worldToScreen(markVecA.set(m.x, m.y, m.z), markVecB);
+        const x = markVecB.x * sx, y = markVecB.y * sy;
+        if (x < 0 || x > w || y < 0 || y > h) continue;
+        const text = '📍 ' + m.text;
+        const tw = ctx.measureText(text).width;
+        ctx.fillStyle = 'rgba(139,92,246,0.85)';
+        ctx.fillRect(x - tw / 2 - 6, y - fz - 10, tw + 12, fz + 8);
+        ctx.fillStyle = '#fff';
+        ctx.fillText(text, x, y - 5);
+      }
+    }
+
     // ====== M9·F-11 · GIF 导出(纯 JS GIF89a:median-cut 256 色 + LZW,零 vendor 依赖)======
     const GIF_FPS = 8, GIF_SECONDS = 3, GIF_WIDTH = 360;
 
@@ -2957,6 +3195,7 @@
             tctx.fillRect(0, 0, w, h);
           }
           tctx.drawImage(canvas, 0, 0, w, h);
+          drawMarkersOnCtx(tctx, w, h);   // M9·F-10 标注画进 GIF
           // 水印(与录屏同款,缩小号)
           tctx.font = 'bold 11px -apple-system, "PingFang SC", sans-serif';
           tctx.textBaseline = 'bottom'; tctx.textAlign = 'right';
@@ -3233,25 +3472,23 @@
       flash.classList.add('flash');
       setTimeout(() => flash.classList.remove('flash'), 80);
       try {
-        let dataUrl;
+        // 统一走临时 canvas(M9·F-10 起:标注要画进 PNG;AR-lite 还要先垫相机 video)
+        const w = canvas.width, h = canvas.height;
+        const tmp = document.createElement('canvas');
+        tmp.width = w; tmp.height = h;
+        const tctx = tmp.getContext('2d');
         if (arLiteState.active) {
           // AR-lite:canvas 透明、相机 feed 在独立 <video>,直接 toDataURL 背景全黑
-          // → 临时 canvas 先画 video(cover 裁切)再叠 splat
           const liteVideo = document.getElementById('ar-lite-video');
-          const w = canvas.width, h = canvas.height;
-          const tmp = document.createElement('canvas');
-          tmp.width = w; tmp.height = h;
-          const tctx = tmp.getContext('2d');
           const vw = liteVideo.videoWidth, vh = liteVideo.videoHeight;
           if (vw && vh) {
             const scale = Math.max(w / vw, h / vh);
             tctx.drawImage(liteVideo, (w - vw * scale) / 2, (h - vh * scale) / 2, vw * scale, vh * scale);
           }
-          tctx.drawImage(canvas, 0, 0, w, h);
-          dataUrl = tmp.toDataURL('image/png');
-        } else {
-          dataUrl = canvas.toDataURL('image/png');
         }
+        tctx.drawImage(canvas, 0, 0, w, h);
+        drawMarkersOnCtx(tctx, w, h);
+        const dataUrl = tmp.toDataURL('image/png');
         const base64 = dataUrl.split(',', 2)[1];
         if (!base64) throw new Error('toDataURL 返回空(WebGL preserveDrawingBuffer?)');
         const ts = new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14);

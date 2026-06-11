@@ -46,6 +46,7 @@ object RoamLogic {
         path.endsWith(".webm", ignoreCase = true) -> "video/webm"
         path.endsWith(".png", ignoreCase = true) -> "image/png"
         path.endsWith(".jpg", ignoreCase = true) || path.endsWith(".jpeg", ignoreCase = true) -> "image/jpeg"
+        path.endsWith(".gif", ignoreCase = true) -> "image/gif"
         else -> "*/*"
     }
 

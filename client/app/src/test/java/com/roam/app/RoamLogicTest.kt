@@ -124,9 +124,13 @@ class RoamLogicTest {
     }
 
     @Test
+    fun mime_gif() = assertEquals("image/gif", RoamLogic.mimeFromFilename("a.gif"))
+
+    @Test
     fun mime_caseInsensitive() {
         assertEquals("video/mp4", RoamLogic.mimeFromFilename("a.MP4"))
         assertEquals("image/png", RoamLogic.mimeFromFilename("a.PnG"))
+        assertEquals("image/gif", RoamLogic.mimeFromFilename("a.GIF"))
     }
 
     @Test

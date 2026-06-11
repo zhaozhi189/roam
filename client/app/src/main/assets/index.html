@@ -302,6 +302,19 @@
         </select>
       </label>
       <div id="rec-timer" style="display:none;text-align:center;margin-top:8px;font-family:ui-monospace,monospace;color:#EF4444;font-size:13px;">00:00 / 01:00</div>
+      <!-- M9·F-09 · 运镜路径:记关键点 → Catmull-Rom 插值自动运镜(可边播边录)-->
+      <div style="margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.08);">
+        <div style="font-size:11px;color:rgba(255,255,255,0.55);margin-bottom:6px;">
+          🎥 运镜路径:在 ② canvas 摆好视角后「记点」,≥2 点可播(每段 3s,切场景自动清空)
+          <span id="kf-count" style="color:#C4B5FD;">· 0 点</span>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:6px;">
+          <button id="kf-add-btn" disabled style="font-size:11px;padding:9px 4px;">📍 记点</button>
+          <button id="kf-play-btn" disabled style="font-size:11px;padding:9px 4px;background:rgba(255,255,255,0.08);box-shadow:none;border:1px solid rgba(255,255,255,0.12);">▶ 预览</button>
+          <button id="kf-rec-btn" disabled style="font-size:11px;padding:9px 4px;background:linear-gradient(135deg,#EF4444,#DC2626);box-shadow:0 6px 16px rgba(239,68,68,0.25);">🎬 录运镜</button>
+          <button id="kf-clear-btn" disabled style="font-size:11px;padding:9px 4px;background:rgba(239,68,68,0.12);color:#F87171;border:1px solid rgba(239,68,68,0.25);box-shadow:none;">🗑 清空</button>
+        </div>
+      </div>
       <button id="rec-list-btn" style="margin-top:8px;background:rgba(255,255,255,0.08);box-shadow:none;border:1px solid rgba(255,255,255,0.12);">刷新本地视频列表</button>
       <div id="rec-list" style="margin-top:10px;font-size:11px;font-family:ui-monospace,monospace;color:rgba(255,255,255,0.7);"></div>
     </div>
@@ -329,11 +342,15 @@
       <button id="qr-self-test" style="margin-top:8px;background:rgba(255,255,255,0.08);box-shadow:none;border:1px solid rgba(255,255,255,0.12);font-size:11px;">🔗 自测当前 deep link(本机跳 Roam)</button>
     </div>
 
-    <!-- Test 7: 截屏(canvas → PNG)— 跟录屏并列 -->
+    <!-- Test 7: 截屏(canvas → PNG)+ M9·F-11 GIF 导出 — 跟录屏并列 -->
     <div class="card">
-      <h2>⑦ · 截当前画面(PNG) <span class="status status-pending" id="snap-badge">待启动场景</span></h2>
-      <div class="meta">必须先点 ② 启动场景。canvas.toDataURL → PNG → internal storage。PNG 比视频小 100 倍,微信发图秒到</div>
-      <button id="snap-btn" disabled>📸 截屏</button>
+      <h2>⑦ · 截当前画面(PNG / GIF) <span class="status status-pending" id="snap-badge">待启动场景</span></h2>
+      <div class="meta">必须先点 ② 启动场景。PNG:canvas.toDataURL 单帧。GIF:抓 3s 动图(360px / 8fps,纯 JS GIF89a 编码,微信表情包 1MB 内)</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+        <button id="snap-btn" disabled>📸 截屏</button>
+        <button id="gif-btn" disabled>🎞 录 GIF(3s)</button>
+      </div>
+      <div id="gif-badge" style="display:none;margin-top:8px;text-align:center;font-size:11px;font-family:ui-monospace,monospace;color:rgba(255,255,255,0.6);"></div>
     </div>
 
     <!-- M4-6 · ⑧ 场景管理(user-scenes 列表 + 删除 + ADR-010 拉远程 sample)-->
@@ -1622,7 +1639,8 @@
         if (sceneStarters[cmd]) { sceneStarters[cmd](); return; }
         // 其他 UI 按钮 cmd → button id 映射
         const map = { record: 'rec-start-btn', stop: 'rec-stop-btn', list: 'rec-list-btn',
-                      pick: 'spz-pick-btn', snap: 'snap-btn', scan: 'scan-btn',
+                      pick: 'spz-pick-btn', snap: 'snap-btn', scan: 'scan-btn', gif: 'gif-btn',
+                      'kf-add': 'kf-add-btn', 'kf-play': 'kf-play-btn', 'kf-rec': 'kf-rec-btn', 'kf-clear': 'kf-clear-btn',
                       'qr-apt': 'qr-apt', 'qr-guitar': 'qr-guitar', 'qr-cube': 'qr-cube' };
         const btn = document.getElementById(map[cmd]);
         if (btn) {
@@ -1661,6 +1679,8 @@
     let currentSceneTag = 'cube';
     function setCurrentScene(tag, displayName) {
       currentSceneTag = (tag || 'scene').replace(/[^a-zA-Z0-9_-]/g, '-').toLowerCase().slice(0, 24) || 'scene';
+      // M9·F-09 · 切场景后旧关键点的 center/radius 失效,自动清空运镜路径
+      kfClearPath(true);
       const chip = document.getElementById('pc-scene-chip');
       if (chip) {
         chip.textContent = displayName || tag || 'scene';
@@ -2360,7 +2380,12 @@
         const sb = document.getElementById('snap-btn');
         const sbg = document.getElementById('snap-badge');
         if (sb) { sb.disabled = false; sbg.textContent = '✓ 可截屏'; sbg.className = 'status status-ready'; }
+        const gb = document.getElementById('gif-btn');
+        if (gb) gb.disabled = false;
       }
+      // M9·F-09 · 场景就绪后才能记运镜点
+      const kab = document.getElementById('kf-add-btn');
+      if (kab) kab.disabled = false;
     }
 
     recStartBtn.addEventListener('click', startWebCodecsRecording);
@@ -2686,6 +2711,279 @@
       recStream = null;
     }
 
+    // ====== M9·F-09 · 运镜路径(关键点 Catmull-Rom 插值自动运镜)======
+    // 关键点 = currentCam 位姿快照,播放时只写 cam 字段,定位仍走 updateCameraEachFrame(零侵入)
+    let kfPath = [];
+    let kfPlaying = false;
+    const KF_SEG_SEC = 3;   // 相邻关键点间插值时长
+
+    function kfUpdateUI() {
+      const count = document.getElementById('kf-count');
+      if (count) count.textContent = '· ' + kfPath.length + ' 点';
+      const can = kfPath.length >= 2 && !kfPlaying;
+      const ids = { 'kf-play-btn': !can, 'kf-rec-btn': !can, 'kf-clear-btn': kfPath.length === 0 || kfPlaying, 'kf-add-btn': kfPlaying || !currentCam };
+      Object.keys(ids).forEach(id => { const b = document.getElementById(id); if (b) b.disabled = ids[id]; });
+    }
+
+    function kfClearPath(silent) {
+      if (!kfPath.length) return;
+      kfPath = [];
+      kfUpdateUI();
+      if (!silent && window.RoamBridge && window.RoamBridge.toast) window.RoamBridge.toast('运镜路径已清空');
+    }
+
+    document.getElementById('kf-add-btn').addEventListener('click', () => {
+      const c = currentCam;
+      if (!c) { alert('请先点 ② 启动场景'); return; }
+      if (kfPath.length && kfPath[0].mode !== c.mode) {
+        alert('相机模式已变(' + kfPath[0].mode + ' → ' + c.mode + '),请先清空再记点');
+        return;
+      }
+      kfPath.push({
+        yaw: c.yaw, pitch: c.pitch, radius: c.radius,
+        fov: (c.cameraEntity && c.cameraEntity.camera) ? c.cameraEntity.camera.fov : 45,
+        cx: c.center.x, cy: c.center.y, cz: c.center.z,
+        mode: c.mode,
+      });
+      kfUpdateUI();
+      if (window.RoamBridge && window.RoamBridge.toast) window.RoamBridge.toast('📍 关键点 ' + kfPath.length);
+    });
+    document.getElementById('kf-clear-btn').addEventListener('click', () => kfClearPath(false));
+
+    // Catmull-Rom 标量插值(端点 clamp 重复,曲线过所有关键点)
+    function kfCatmull(p0, p1, p2, p3, t) {
+      const t2 = t * t, t3 = t2 * t;
+      return 0.5 * ((2 * p1) + (-p0 + p2) * t
+        + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t2
+        + (-p0 + 3 * p1 - 3 * p2 + p3) * t3);
+    }
+
+    // 播放路径:rAF 每帧把插值结果写进 currentCam,播完 resolve
+    function kfPlay() {
+      return new Promise((resolve) => {
+        const c = currentCam;
+        if (!c || kfPath.length < 2 || kfPlaying) { resolve(false); return; }
+        kfPlaying = true;
+        kfUpdateUI();
+        const totalMs = (kfPath.length - 1) * KF_SEG_SEC * 1000;
+        const t0 = performance.now();
+        const FIELDS = ['yaw', 'pitch', 'radius', 'fov', 'cx', 'cy', 'cz'];
+        function step() {
+          const u = Math.min(1, (performance.now() - t0) / totalMs) * (kfPath.length - 1);
+          const i = Math.min(kfPath.length - 2, Math.floor(u));
+          const s = u - i;
+          const at = (j) => kfPath[Math.max(0, Math.min(kfPath.length - 1, j))];
+          const v = {};
+          FIELDS.forEach(f => { v[f] = kfCatmull(at(i - 1)[f], at(i)[f], at(i + 1)[f], at(i + 2)[f], s); });
+          c.yaw = v.yaw; c.pitch = v.pitch; c.radius = v.radius;
+          c.center.set(v.cx, v.cy, v.cz);
+          if (c.mode === 'indoor' && c.cameraEntity && c.cameraEntity.camera) {
+            c.fov = v.fov;
+            c.cameraEntity.camera.fov = v.fov;
+          }
+          // 压住自动旋转:每帧刷新 lastInteractMs,播完后按 resumeMs 正常恢复
+          c.autoRotate = false;
+          c.lastInteractMs = performance.now();
+          if (u < kfPath.length - 1 && kfPlaying) {
+            requestAnimationFrame(step);
+          } else {
+            kfPlaying = false;
+            kfUpdateUI();
+            resolve(true);
+          }
+        }
+        step();
+      });
+    }
+
+    document.getElementById('kf-play-btn').addEventListener('click', () => kfPlay());
+
+    // 🎬 录运镜:自动串联现有录屏 → 播放路径 → 停止保存(F-09 核心场景:不用手动走)
+    document.getElementById('kf-rec-btn').addEventListener('click', async () => {
+      if (recRecording) { alert('已在录制中,请先停止'); return; }
+      if (kfPath.length < 2) return;
+      await startWebCodecsRecording();
+      if (!recRecording) return;  // 录屏启动失败(编码器不支持等),错误已在内部提示
+      await new Promise(r => setTimeout(r, 400));   // 留一点起始静止帧
+      await kfPlay();
+      await new Promise(r => setTimeout(r, 400));   // 结尾静止帧
+      if (recRecording) await stopWebCodecsRecording();
+    });
+
+    // ====== M9·F-11 · GIF 导出(纯 JS GIF89a:median-cut 256 色 + LZW,零 vendor 依赖)======
+    const GIF_FPS = 8, GIF_SECONDS = 3, GIF_WIDTH = 360;
+
+    // 跨帧均匀采样 → median-cut 切出 256 色全局调色板
+    function gifPalette(frames) {
+      const samples = [];
+      const step = Math.max(1, Math.floor(frames.length * frames[0].data.length / 4 / 32768));
+      for (const f of frames) {
+        const d = f.data;
+        for (let i = 0; i < d.length; i += 4 * step) samples.push([d[i], d[i + 1], d[i + 2]]);
+      }
+      const boxes = [samples];
+      while (boxes.length < 256) {
+        let bi = -1, bn = 1;
+        for (let i = 0; i < boxes.length; i++) if (boxes[i].length > bn) { bn = boxes[i].length; bi = i; }
+        if (bi < 0) break;   // 没有可再切的箱(颜色总数 < 256)
+        const box = boxes[bi];
+        let ch = 0, spread = -1;
+        for (let c = 0; c < 3; c++) {
+          let mn = 255, mx = 0;
+          for (const p of box) { if (p[c] < mn) mn = p[c]; if (p[c] > mx) mx = p[c]; }
+          if (mx - mn > spread) { spread = mx - mn; ch = c; }
+        }
+        box.sort((a, b) => a[ch] - b[ch]);
+        const mid = box.length >> 1;
+        boxes[bi] = box.slice(0, mid);
+        boxes.push(box.slice(mid));
+      }
+      const pal = new Uint8Array(256 * 3);
+      boxes.forEach((box, i) => {
+        let r = 0, g = 0, b = 0;
+        for (const p of box) { r += p[0]; g += p[1]; b += p[2]; }
+        const n = box.length || 1;
+        pal[i * 3] = Math.round(r / n); pal[i * 3 + 1] = Math.round(g / n); pal[i * 3 + 2] = Math.round(b / n);
+      });
+      return pal;
+    }
+
+    // RGB → 最近调色板索引(RGB555 cache,最多 32k 条,避免逐像素 256 次暴力搜)
+    function gifIndexFrame(imageData, pal, cache) {
+      const d = imageData.data, n = d.length / 4, out = new Uint8Array(n);
+      for (let i = 0; i < n; i++) {
+        const r = d[i * 4], g = d[i * 4 + 1], b = d[i * 4 + 2];
+        const key = ((r >> 3) << 10) | ((g >> 3) << 5) | (b >> 3);
+        let idx = cache.get(key);
+        if (idx === undefined) {
+          let bd = Infinity;
+          for (let p = 0; p < 256; p++) {
+            const dr = r - pal[p * 3], dg = g - pal[p * 3 + 1], db = b - pal[p * 3 + 2];
+            const dist = dr * dr + dg * dg + db * db;
+            if (dist < bd) { bd = dist; idx = p; }
+          }
+          cache.set(key, idx);
+        }
+        out[i] = idx;
+      }
+      return out;
+    }
+
+    // GIF LZW(min code size 8,LSB-first 码流,4096 重置;对齐 GIF89a 标准编码器行为)
+    function gifLzw(indices, out) {
+      const CLEAR = 256, EOI = 257;
+      let dict = new Map(), size = 258, width = 9;
+      let cur = 0, bits = 0;
+      const bytes = [];
+      const emit = (code) => {
+        cur |= code << bits; bits += width;
+        while (bits >= 8) { bytes.push(cur & 0xFF); cur >>= 8; bits -= 8; }
+      };
+      emit(CLEAR);
+      let prefix = indices[0];
+      for (let i = 1; i < indices.length; i++) {
+        const k = indices[i];
+        const key = (prefix << 8) | k;
+        const hit = dict.get(key);
+        if (hit !== undefined) { prefix = hit; continue; }
+        emit(prefix);
+        if (size === 4096) {
+          emit(CLEAR);
+          dict = new Map(); size = 258; width = 9;
+        } else {
+          if (size >= (1 << width)) width++;
+          dict.set(key, size++);
+        }
+        prefix = k;
+      }
+      emit(prefix);
+      emit(EOI);
+      if (bits > 0) bytes.push(cur & 0xFF);
+      out.push(8);   // LZW min code size
+      for (let i = 0; i < bytes.length; i += 255) {
+        const n = Math.min(255, bytes.length - i);
+        out.push(n);
+        for (let j = 0; j < n; j++) out.push(bytes[i + j]);
+      }
+      out.push(0);   // block terminator
+    }
+
+    function encodeGif(frames, w, h, fps) {
+      const pal = gifPalette(frames);
+      const cache = new Map();
+      const out = [];
+      const u16 = (v) => out.push(v & 0xFF, (v >> 8) & 0xFF);
+      for (const ch of 'GIF89a') out.push(ch.charCodeAt(0));
+      u16(w); u16(h);
+      out.push(0xF7, 0, 0);            // 全局 256 色表 flag
+      for (const v of pal) out.push(v);
+      out.push(0x21, 0xFF, 11);        // NETSCAPE2.0 无限循环
+      for (const ch of 'NETSCAPE2.0') out.push(ch.charCodeAt(0));
+      out.push(3, 1, 0, 0, 0);
+      const delay = Math.round(100 / fps);   // 单位 1/100s
+      for (const f of frames) {
+        out.push(0x21, 0xF9, 4, 0, delay & 0xFF, (delay >> 8) & 0xFF, 0, 0);  // GCE
+        out.push(0x2C); u16(0); u16(0); u16(w); u16(h); out.push(0);          // 图像描述符
+        gifLzw(gifIndexFrame(f, pal, cache), out);
+      }
+      out.push(0x3B);
+      return new Uint8Array(out);
+    }
+
+    document.getElementById('gif-btn').addEventListener('click', async () => {
+      const canvas = document.getElementById('pc-canvas');
+      const gifBtn = document.getElementById('gif-btn');
+      const gifBadge = document.getElementById('gif-badge');
+      if (!pcApp || !canvas) { alert('请先点 ② 启动场景'); return; }
+      gifBtn.disabled = true;
+      gifBadge.style.display = 'block';
+      try {
+        const w0 = canvas.width, h0 = canvas.height;
+        const w = GIF_WIDTH, h = Math.round(h0 * GIF_WIDTH / w0);
+        const tmp = document.createElement('canvas');
+        tmp.width = w; tmp.height = h;
+        const tctx = tmp.getContext('2d', { willReadFrequently: true });
+        const liteVideo = document.getElementById('ar-lite-video');
+        const total = GIF_FPS * GIF_SECONDS;
+        const frames = [];
+        for (let i = 0; i < total; i++) {
+          // AR-lite 时 canvas 透明,先画相机 video 垫底(cover 裁切),与录屏/截屏一致
+          if (arLiteState.active && liteVideo.videoWidth) {
+            const vw = liteVideo.videoWidth, vh = liteVideo.videoHeight;
+            const scale = Math.max(w / vw, h / vh);
+            tctx.drawImage(liteVideo, (w - vw * scale) / 2, (h - vh * scale) / 2, vw * scale, vh * scale);
+          } else {
+            tctx.fillStyle = '#000';
+            tctx.fillRect(0, 0, w, h);
+          }
+          tctx.drawImage(canvas, 0, 0, w, h);
+          // 水印(与录屏同款,缩小号)
+          tctx.font = 'bold 11px -apple-system, "PingFang SC", sans-serif';
+          tctx.textBaseline = 'bottom'; tctx.textAlign = 'right';
+          tctx.fillStyle = 'rgba(0,0,0,0.5)';  tctx.fillText('Roam · 即境', w - 5, h - 4);
+          tctx.fillStyle = 'rgba(255,255,255,0.85)'; tctx.fillText('Roam · 即境', w - 6, h - 5);
+          frames.push(tctx.getImageData(0, 0, w, h));
+          gifBadge.textContent = '🎞 抓帧 ' + (i + 1) + '/' + total;
+          await new Promise(r => setTimeout(r, 1000 / GIF_FPS));
+        }
+        gifBadge.textContent = '🎞 编码中…(' + frames.length + ' 帧)';
+        await new Promise(r => setTimeout(r, 30));   // 让 badge 先渲染再跑同步编码
+        const bytes = encodeGif(frames, w, h, GIF_FPS);
+        const ts = new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14);
+        const filename = `roam-${currentSceneTag}-${ts}.gif`;
+        const path = window.RoamBridge.saveVideoBase64(filename, arrayBufferToBase64(bytes.buffer));
+        const sizeKB = Math.round(bytes.length / 1024);
+        gifBadge.textContent = '✓ ' + filename + ' (' + sizeKB + 'KB)';
+        if (window.RoamBridge.toast) window.RoamBridge.toast('🎞 GIF 已保存 (' + sizeKB + 'KB)');
+        console.log('[Roam] gif saved:', path, sizeKB + 'KB');
+        setTimeout(refreshRecList, 200);
+      } catch (e) {
+        console.error('[Roam] gif failed:', e);
+        gifBadge.textContent = '✗ ' + e.message;
+      }
+      gifBtn.disabled = false;
+    });
+
     function arrayBufferToBase64(buf) {
       const bytes = new Uint8Array(buf);
       const CHUNK = 0x8000;
@@ -2724,24 +3022,26 @@
         info.style.cssText = 'flex:1;min-width:0;display:flex;align-items:center;gap:8px;';
         const isMp4 = it.name.endsWith('.mp4');
         const isPng = it.name.endsWith('.png');
-        // M3-3 · PNG 缩略图(通过 Bridge 读 base64);MP4 用 emoji 占位
+        const isGif = it.name.endsWith('.gif');
+        // M3-3 · PNG/GIF 缩略图(通过 Bridge 读 base64,GIF 在列表里直接动);MP4 用 emoji 占位
         const thumb = document.createElement('div');
         thumb.style.cssText = 'width:36px;height:36px;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,0.05);border-radius:6px;font-size:18px;overflow:hidden;';
-        if (isPng && window.RoamBridge && window.RoamBridge.readFileBase64) {
+        if ((isPng || isGif) && window.RoamBridge && window.RoamBridge.readFileBase64) {
+          const fallbackEmoji = isGif ? '🎞' : '📸';
           // 异步读取 base64 + 显示
           setTimeout(() => {
             try {
               const b64 = window.RoamBridge.readFileBase64(it.path);
               if (b64) {
                 const img = document.createElement('img');
-                img.src = 'data:image/png;base64,' + b64;
+                img.src = 'data:image/' + (isGif ? 'gif' : 'png') + ';base64,' + b64;
                 img.style.cssText = 'width:100%;height:100%;object-fit:cover;';
                 while (thumb.firstChild) thumb.removeChild(thumb.firstChild);
                 thumb.appendChild(img);
               } else {
-                thumb.textContent = '📸';
+                thumb.textContent = fallbackEmoji;
               }
-            } catch (e) { thumb.textContent = '📸'; }
+            } catch (e) { thumb.textContent = fallbackEmoji; }
           }, 0);
           thumb.textContent = '⋯';
         } else {

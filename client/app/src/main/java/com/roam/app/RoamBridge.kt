@@ -46,7 +46,7 @@ class RoamBridge(
         val dir = File(activity.filesDir, "recordings")
         if (!dir.exists()) return "[]"
         val items = dir.listFiles { f ->
-                f.isFile && (f.name.endsWith(".mp4") || f.name.endsWith(".webm") || f.name.endsWith(".png"))
+                f.isFile && (f.name.endsWith(".mp4") || f.name.endsWith(".webm") || f.name.endsWith(".png") || f.name.endsWith(".gif"))
             }
             ?.sortedByDescending { it.lastModified() }
             ?.map { f ->
@@ -64,7 +64,7 @@ class RoamBridge(
      *
      * 文件名后缀决定 collection:
      *   .mp4/.webm → MediaStore.Video.Media (Movies/Roam/)
-     *   .png       → MediaStore.Images.Media (Pictures/Roam/)
+     *   .png/.gif  → MediaStore.Images.Media (Pictures/Roam/)
      *
      * @return internal storage 绝对路径
      */
@@ -94,7 +94,7 @@ class RoamBridge(
      */
     private fun exportToMediaStore(filename: String, bytes: ByteArray) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return
-        val isImage = filename.endsWith(".png")
+        val isImage = filename.endsWith(".png") || filename.endsWith(".gif")
         val isVideo = filename.endsWith(".mp4") || filename.endsWith(".webm")
         if (!isImage && !isVideo) return
 

@@ -3065,7 +3065,8 @@
     }
 
     // ====== M9·F-11 · GIF 导出(纯 JS GIF89a:median-cut 256 色 + LZW,零 vendor 依赖)======
-    const GIF_FPS = 8, GIF_SECONDS = 3, GIF_WIDTH = 360;
+    // GIF_WIDTH 320:真机实测 360px 竖屏 24 帧出 1052KB,超微信表情包 1MB 上限;320px ≈ 830KB
+    const GIF_FPS = 8, GIF_SECONDS = 3, GIF_WIDTH = 320;
 
     // 跨帧均匀采样 → median-cut 切出 256 色全局调色板
     function gifPalette(frames) {

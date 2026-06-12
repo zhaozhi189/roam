@@ -1974,7 +1974,6 @@
         const grHasInst = typeof pc.GSplatResource?.prototype?.instantiate;
         const giType = typeof pc.GSplatInstance;
         console.log('[Roam] pc.GSplatResource=' + grType + ' instantiate=' + grHasInst + ' GSplatInstance=' + giType);
-        if (window.RoamBridge?.toast) window.RoamBridge.toast(`GSR=${grType} inst=${grHasInst} GSI=${giType}`);
         if (pc.GSplatResource) {
           // 强制覆盖(不检查 !instantiate),便于反复调试
           pc.GSplatResource.prototype.instantiate = function (materialOptions) {

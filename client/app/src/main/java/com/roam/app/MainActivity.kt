@@ -189,6 +189,9 @@ fun RoamWebView(
                 // file:// scheme 下 fetch() 在 Android 11+ 受同源策略限制,PlayCanvas 加载 .ply/.sog 会 Failed to fetch
                 val assetLoader = WebViewAssetLoader.Builder()
                     .addPathHandler("/assets/", WebViewAssetLoader.AssetsPathHandler(context))
+                    // M10 · filesDir 也走 https 虚拟域名:用户场景(user-scenes/)改流式 URL 加载,
+                    // 百 MB 自扫场景不再走 readFileBase64(113MB 文件 base64 链路 JS 堆 ~400MB 直接 OOM)
+                    .addPathHandler("/files/", WebViewAssetLoader.InternalStoragePathHandler(context, context.filesDir))
                     .build()
                 webViewClient = object : WebViewClient() {
                     override fun shouldInterceptRequest(

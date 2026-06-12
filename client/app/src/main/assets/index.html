@@ -725,35 +725,34 @@
       if (s.kind === 'gsplat') {
         return () => { rememberScene(); startGSplatScene(s.url, s.name, { mode: s.mode }); afterStart(); };
       }
-      // M4-3 · 用户场景(从 internal storage 读 base64 → blob/buf)
+      // M4-3 → M10 · 用户场景改流式 URL 加载(InternalStoragePathHandler 把 filesDir
+      // 映射到 /files/);原 readFileBase64 链路在 113MB 自扫场景上 JS 堆 ~400MB OOM
+      // path: /data/user/0/com.roam.app/files/user-scenes/x.ply → /files/user-scenes/x.ply
+      const userPathToUrl = (p) => {
+        const i = p.indexOf('/files/');
+        return i >= 0 ? 'https://appassets.androidplatform.net' + encodeURI(p.slice(i)) : null;
+      };
       if (s.kind === 'gsplat-userpath') {
         return async () => {
           rememberScene();
-          if (!window.RoamBridge || !window.RoamBridge.readFileBase64) return;
-          const b64 = window.RoamBridge.readFileBase64(s.path);
-          if (!b64) { alert('读用户场景失败'); return; }
-          const bin = atob(b64);
-          const buf = new ArrayBuffer(bin.length);
-          const view = new Uint8Array(buf);
-          for (let i = 0; i < bin.length; i++) view[i] = bin.charCodeAt(i);
-          const blob = new Blob([buf]);
-          const blobUrl = URL.createObjectURL(blob);
-          await startGSplatScene(blobUrl, s.name, { mode: s.mode });
+          const url = userPathToUrl(s.path);
+          if (!url) { alert('用户场景路径异常: ' + s.path); return; }
+          await startGSplatScene(url, s.name, { mode: s.mode });
           afterStart();
         };
       }
       if (s.isUser && s.kind === 'spz') {
         return async () => {
           rememberScene();
-          if (!window.RoamBridge || !window.RoamBridge.readFileBase64) return;
-          const b64 = window.RoamBridge.readFileBase64(s.path);
-          if (!b64) { alert('读 SPZ 失败'); return; }
-          const bin = atob(b64);
-          const buf = new ArrayBuffer(bin.length);
-          const view = new Uint8Array(buf);
-          for (let i = 0; i < bin.length; i++) view[i] = bin.charCodeAt(i);
-          await startSpzScene(buf, s.name, 'user-spz', { mode: s.mode });
-          afterStart();
+          const url = userPathToUrl(s.path);
+          if (!url) { alert('用户场景路径异常: ' + s.path); return; }
+          try {
+            const resp = await fetch(url);
+            if (!resp.ok) throw new Error('HTTP ' + resp.status);
+            const buf = await resp.arrayBuffer();
+            await startSpzScene(buf, s.name, 'user-spz', { mode: s.mode });
+            afterStart();
+          } catch (e) { alert('读 SPZ 失败: ' + e.message); }
         };
       }
       if (s.kind === 'spz') {
@@ -1882,8 +1881,10 @@
         const localPcApp = pcApp;  // 闭包绑定本次的 pcApp,destroy 后失效但本地引用还在
         localPcApp.assets.add(asset);
         // M8 修 · 30s 超时:慢网/远程 fetch 不返回时主动 reject,不让 spinner 永远转
-        const isRemote = /^https?:\/\//.test(url);
-        const timeoutMs = isRemote ? 30000 : 15000;
+        // M10 · /files/ 是本地流式用户场景(自扫可达百 MB,解析慢但稳)→ 60s
+        const isUserFile = url.includes('appassets.androidplatform.net/files/');
+        const isRemote = !isUserFile && /^https?:\/\//.test(url);
+        const timeoutMs = isUserFile ? 60000 : (isRemote ? 30000 : 15000);
         await new Promise((resolve, reject) => {
           const timer = setTimeout(() => {
             reject(new Error('加载超时 ' + (timeoutMs / 1000) + 's · 网络慢或 URL 不可达'));

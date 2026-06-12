@@ -229,6 +229,34 @@
       display: none;
     }
     #pc-mark-btn.active { background: rgba(139,92,246,0.8); }
+    /* F-12+ · 上下翻转按钮(mark 按钮右边)*/
+    #pc-flip-btn {
+      position: absolute; bottom: 40px; left: 96px;
+      background: rgba(0,0,0,0.5); backdrop-filter: blur(8px);
+      padding: 4px 10px; border-radius: 999px;
+      font-size: 11px; color: #fff; border: none;
+      cursor: pointer; line-height: 1;
+      width: auto; box-shadow: none; margin: 0;
+      display: none;
+    }
+    #pc-flip-btn.active { background: rgba(245,158,11,0.7); }
+    /* F-12+ · 虚拟摇杆(indoor 右下,FPS 手柄式;不挡场景 chip,放它上方)*/
+    #pc-joy {
+      position: absolute; right: 16px; bottom: 44px;
+      width: 104px; height: 104px; border-radius: 50%;
+      background: rgba(255,255,255,0.08);
+      border: 1.5px solid rgba(255,255,255,0.18);
+      backdrop-filter: blur(4px);
+      display: none; touch-action: none;
+    }
+    #pc-joy-knob {
+      position: absolute; left: 50%; top: 50%;
+      width: 44px; height: 44px; border-radius: 50%;
+      background: rgba(139,92,246,0.75);
+      box-shadow: 0 2px 10px rgba(0,0,0,0.4);
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+    }
     #pc-markers { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
     .pc-marker {
       position: absolute; transform: translate(-50%, -110%);
@@ -293,6 +321,9 @@
         <button id="pc-mode-btn" title="室内 / 环绕 切换" style="display:none">🌍 环绕</button>
         <button id="pc-walk-btn" title="indoor 模式步行(沿视线匀速前进)">🚶 走</button>
         <button id="pc-mark-btn" title="打点标注:点📌后再点画面位置">📌 标注</button>
+        <button id="pc-flip-btn" title="上下翻转(扫描场景方向不对时用,按场景记忆)">🙃 翻转</button>
+        <!-- F-12+ · 虚拟摇杆(indoor 模式,右下角;拖动 = 前后左右平移,松手停)-->
+        <div id="pc-joy"><div id="pc-joy-knob"></div></div>
       </div>
     </div>
 
@@ -1676,7 +1707,7 @@
         if (sceneStarters[cmd]) { sceneStarters[cmd](); return; }
         // 其他 UI 按钮 cmd → button id 映射
         const map = { record: 'rec-start-btn', stop: 'rec-stop-btn', list: 'rec-list-btn',
-                      pick: 'spz-pick-btn', snap: 'snap-btn', scan: 'scan-btn', gif: 'gif-btn', walk: 'pc-walk-btn',
+                      pick: 'spz-pick-btn', snap: 'snap-btn', scan: 'scan-btn', gif: 'gif-btn', walk: 'pc-walk-btn', flip: 'pc-flip-btn',
                       'kf-add': 'kf-add-btn', 'kf-play': 'kf-play-btn', 'kf-rec': 'kf-rec-btn', 'kf-clear': 'kf-clear-btn',
                       'qr-apt': 'qr-apt', 'qr-guitar': 'qr-guitar', 'qr-cube': 'qr-cube' };
         const btn = document.getElementById(map[cmd]);
@@ -1726,6 +1757,12 @@
       markPlacing = false;
       const mkbtn0 = document.getElementById('pc-mark-btn');
       if (mkbtn0) { mkbtn0.style.display = 'none'; mkbtn0.classList.remove('active'); }
+      // F-12+ · 翻转按钮 / 摇杆同样按场景重置
+      const fbtn0 = document.getElementById('pc-flip-btn');
+      if (fbtn0) { fbtn0.style.display = 'none'; fbtn0.classList.remove('active'); }
+      const joy0 = document.getElementById('pc-joy');
+      if (joy0) joy0.style.display = 'none';
+      joyState.dx = joyState.dy = joyState.mag = 0;
       // 卸旧 splat 引用 + 载入该场景已存标注(localStorage);F-12 碰撞网格随场景失效
       currentSplatResource = null;
       collGrid = null; collGridSrc = null;
@@ -1880,6 +1917,12 @@
         console.log('[Roam] AABB center=', center.toString(), 'radius=', radius);
 
         const mode = opts.mode || 'orbit';
+        // F-12+ · indoor 出生点改密度中位中心:AABB 被 floater 撑大时其中心常悬在房间外
+        // (公寓实测 AABB 中心 y=-7 而房间主体 y∈[-4.3,0.1]→「居高临下」),中位数抗 floater
+        if (mode === 'indoor') {
+          const mc = splatMedianCenter();
+          if (mc) { center = mc; console.log('[Roam] indoor 出生点(密度中位):', mc.toString()); }
+        }
         setupCameraOrbitOrIndoor(camera, canvas, center, radius, mode, sceneName);
 
         let frames = 0;
@@ -2070,6 +2113,9 @@
     // 全局 cam 状态(userSettings / pcApp / currentCam 都在顶部 init,防 TDZ)
     function setupCameraOrbitOrIndoor(cameraEntity, canvas, center, radius, mode, sceneName, halfExtentsY) {
       // 回到 v2 已知 work 行为:lookAt center;orbit pitch -0.2;y 偏移由 update 加 radius*0.15
+      // F-12+ · 上下翻转(扫描场景 up 不一定是世界 +Y,如公寓 SOG 实测倒置),按场景记忆
+      let upY = 1;
+      try { upY = localStorage.getItem('roam:upflip:' + currentSceneTag) === '-1' ? -1 : 1; } catch (e) {}
       const cam = {
         mode: mode,
         center: center.clone(),
@@ -2078,6 +2124,7 @@
         initialRadius: radius,
         yaw: 0,
         pitch: mode === 'indoor' ? 0 : -0.2,
+        upY: upY,
         autoRotate: userSettings.autoRotate,
         lastInteractMs: 0,
         AUTO_RESUME_MS: (userSettings.resumeMs || 3) * 1000,
@@ -2106,7 +2153,19 @@
       const mkbtn = document.getElementById('pc-mark-btn');
       if (mkbtn) { mkbtn.style.display = 'block'; mkbtn.classList.remove('active'); }
       markPlacing = false;
+      // F-12+ · 翻转按钮(所有 splat 场景)+ 虚拟摇杆(仅 indoor)
+      const fbtn = document.getElementById('pc-flip-btn');
+      if (fbtn) {
+        fbtn.style.display = 'block';
+        fbtn.classList.toggle('active', cam.upY === -1);
+      }
+      const joy = document.getElementById('pc-joy');
+      if (joy) joy.style.display = mode === 'indoor' ? 'block' : 'none';
+      joyState.dx = joyState.dy = joyState.mag = 0;
     }
+    // F-12+ · 虚拟摇杆状态(-1..1);lookAt 的 up 用数字签名 (tx,ty,tz,ux,uy,uz),
+    // ⚠️ 不能混用「数字目标 + Vec3 up」—— PlayCanvas 会把 Vec3 当 ux → NaN 矩阵黑屏(实测踩坑)
+    let joyState = { dx: 0, dy: 0, mag: 0 };
     function updateCameraEachFrame(cameraEntity, dt) {
       const c = currentCam;
       if (!c) return;
@@ -2116,23 +2175,33 @@
       }
       const cp = Math.cos(c.pitch), sp = Math.sin(c.pitch);
       const cy = Math.cos(c.yaw), sy = Math.sin(c.yaw);
+      const upY = c.upY || 1;   // F-12+ 场景倒置翻转
       if (c.mode === 'indoor') {
+        // 试探移动 + F-12 碰撞:撞实体就停在原地(转向可继续),不打断状态
+        const tryMove = (mx, my, mz) => {
+          const nx = c.center.x + mx, ny = c.center.y + my, nz = c.center.z + mz;
+          if (!userSettings.collision || !collBlocked(nx, ny, nz)) {
+            c.center.x = nx; c.center.y = ny; c.center.z = nz;
+          }
+        };
         // M5-1 walk:沿 lookAt 方向匀速前进(forward = (cp*cy, sp, cp*sy) 单位向量)
-        // F-12:开碰撞时下一步撞实体就停在原地(转向后可继续走),不打断 walking 状态
         if (c.walking) {
           const f = c.walkSpeed * dt;
-          const nx = c.center.x + cp * cy * f;
-          const ny = c.center.y + sp * f;
-          const nz = c.center.z + cp * sy * f;
-          if (!userSettings.collision || !collBlocked(nx, ny, nz)) {
-            c.center.x = nx;
-            c.center.y = ny;
-            c.center.z = nz;
-          }
+          tryMove(cp * cy * f, sp * f, cp * sy * f);
+        }
+        // F-12+ 虚拟摇杆:dy 前后(沿视线水平投影)、dx 左右平移(视觉右 = forward × up)
+        if (joyState.mag > 0.05) {
+          const f = c.walkSpeed * 1.5 * dt * joyState.mag;
+          const fx = cy, fz = sy;                                  // 水平前向
+          const rx = -sy * (c.upY || 1), rz = cy * (c.upY || 1);   // 视觉右(翻转时取反)
+          const mx = (fx * -joyState.dy + rx * joyState.dx);
+          const mz = (fz * -joyState.dy + rz * joyState.dx);
+          const L = Math.hypot(mx, mz) || 1;
+          tryMove(mx / L * f, 0, mz / L * f);
         }
         cameraEntity.setPosition(c.center.x, c.center.y, c.center.z);
         const dir = new pc.Vec3(cp * cy, sp, cp * sy);
-        cameraEntity.lookAt(c.center.x + dir.x, c.center.y + dir.y, c.center.z + dir.z);
+        cameraEntity.lookAt(c.center.x + dir.x, c.center.y + dir.y, c.center.z + dir.z, 0, upY, 0);
       } else {
         // 相机在 AABB 外环绕中心(物体观赏),y 微抬 0.15*radius(看物体「脸」)
         cameraEntity.setPosition(
@@ -2140,7 +2209,7 @@
           c.center.y + c.radius * sp + c.radius * 0.15,
           c.center.z + c.radius * cp * sy
         );
-        cameraEntity.lookAt(c.center);
+        cameraEntity.lookAt(c.center.x, c.center.y, c.center.z, 0, upY, 0);
       }
       // M9·F-10 · 标注跟随相机投影(所有场景共用此 update)
       updateMarkersEachFrame(cameraEntity);
@@ -2153,6 +2222,9 @@
       currentCam.AUTO_SPEED = newMode === 'indoor' ? 0.10 : 0.25;
       const mbtn = document.getElementById('pc-mode-btn');
       if (mbtn) mbtn.textContent = newMode === 'indoor' ? '🏠 室内(切环绕)' : '🌍 环绕(切室内)';
+      // F-12+ 摇杆只在 indoor 显示
+      const joy = document.getElementById('pc-joy');
+      if (joy) joy.style.display = newMode === 'indoor' ? 'block' : 'none';
       // Android WebView 不能 cache JS bridge method 引用(丢 binding 报 non-injected object)
       // 必须每次 window.RoamBridge.toast(...) 直接调用
       if (window.RoamBridge && window.RoamBridge.toast) {
@@ -2227,9 +2299,11 @@
           // 共同目标:swipe up 都让"视野往上",符合 mobile 拖图直觉
           const dx = now[0].x - touches[0].x;
           const dy = now[0].y - touches[0].y;
-          cam.yaw -= dx * ROT_SENS;
+          // F-12+ 翻转时画面镜像,拖拽方向乘 upY 保持「往哪拖往哪转」直觉
+          const u = cam.upY || 1;
+          cam.yaw -= dx * ROT_SENS * u;
           const pitchSign = cam.mode === 'orbit' ? 1 : -1;
-          cam.pitch += dy * ROT_SENS * pitchSign;
+          cam.pitch += dy * ROT_SENS * pitchSign * u;
           if (cam.pitch > PITCH_LIMIT) cam.pitch = PITCH_LIMIT;
           if (cam.pitch < -PITCH_LIMIT) cam.pitch = -PITCH_LIMIT;
         } else if (now.length === 2 && touches.length === 2) {
@@ -3113,6 +3187,19 @@
       return collGrid;
     }
 
+    // F-12+ · splat 密度中位中心(采样 ≤3 万点,抗 floater;indoor 出生点用)
+    function splatMedianCenter() {
+      const centers = splatCenters();
+      if (!centers) return null;
+      const stride = Math.max(1, Math.floor(centers.length / 3 / 30000)) * 3;
+      const xs = [], ys = [], zs = [];
+      for (let i = 0; i < centers.length; i += stride) {
+        xs.push(centers[i]); ys.push(centers[i + 1]); zs.push(centers[i + 2]);
+      }
+      const mid = (a) => { a.sort((p, q) => p - q); return a[a.length >> 1]; };
+      return new pc.Vec3(mid(xs), mid(ys), mid(zs));
+    }
+
     // 下一步位置是否撞实体(3x3x3 邻域 ≈ 0.25~0.37m 碰撞半径;y-1 是脚下 0.25m,室内地面在 ~1.5m 下不受影响)
     function collBlocked(x, y, z) {
       const g = collGetGrid();
@@ -3125,6 +3212,51 @@
       }
       return false;
     }
+
+    // ====== F-12+ · 虚拟摇杆(indoor 步行手柄)+ 上下翻转按钮 ======
+    (function initJoystick() {
+      const joy = document.getElementById('pc-joy');
+      if (!joy) return;
+      const JOY_R = 52;   // 底盘半径(px),knob 最大偏移 = R - knob 半径
+      const knob = document.getElementById('pc-joy-knob');
+      function setFromTouch(t) {
+        const rect = joy.getBoundingClientRect();
+        let dx = t.clientX - (rect.left + rect.width / 2);
+        let dy = t.clientY - (rect.top + rect.height / 2);
+        const L = Math.hypot(dx, dy);
+        const max = JOY_R - 22;
+        if (L > max) { dx = dx / L * max; dy = dy / L * max; }
+        knob.style.transform = 'translate(calc(-50% + ' + dx + 'px), calc(-50% + ' + dy + 'px))';
+        joyState.dx = dx / max;
+        joyState.dy = dy / max;
+        joyState.mag = Math.min(1, L / max);
+      }
+      function reset() {
+        knob.style.transform = 'translate(-50%, -50%)';
+        joyState.dx = joyState.dy = joyState.mag = 0;
+      }
+      joy.addEventListener('touchstart', (e) => { e.preventDefault(); setFromTouch(e.touches[0]); }, { passive: false });
+      joy.addEventListener('touchmove', (e) => { e.preventDefault(); setFromTouch(e.touches[0]); }, { passive: false });
+      joy.addEventListener('touchend', (e) => { e.preventDefault(); if (!e.touches.length) reset(); }, { passive: false });
+      joy.addEventListener('touchcancel', reset);
+      // 桌面调试:鼠标也能拖
+      let mouseDown = false;
+      joy.addEventListener('mousedown', (e) => { mouseDown = true; setFromTouch(e); });
+      window.addEventListener('mousemove', (e) => { if (mouseDown) setFromTouch(e); });
+      window.addEventListener('mouseup', () => { if (mouseDown) { mouseDown = false; reset(); } });
+    })();
+
+    // 🙃 上下翻转:扫描场景 up 常不是世界 +Y(公寓 SOG 实测倒置 → 此前要倒拿手机)
+    document.getElementById('pc-flip-btn').addEventListener('click', () => {
+      const c = currentCam;
+      if (!c) return;
+      c.upY = (c.upY || 1) === 1 ? -1 : 1;
+      document.getElementById('pc-flip-btn').classList.toggle('active', c.upY === -1);
+      try { localStorage.setItem('roam:upflip:' + currentSceneTag, String(c.upY)); } catch (e) {}
+      if (window.RoamBridge && window.RoamBridge.toast) {
+        window.RoamBridge.toast(c.upY === -1 ? '🙃 已上下翻转(按场景记忆)' : '已恢复正向');
+      }
+    });
 
     // ====== M9·F-11 · GIF 导出(纯 JS GIF89a:median-cut 256 色 + LZW,零 vendor 依赖)======
     // GIF_WIDTH 320:真机实测 360px 竖屏 24 帧出 1052KB,超微信表情包 1MB 上限;320px ≈ 830KB

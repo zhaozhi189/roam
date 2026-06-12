@@ -74,7 +74,7 @@ cmd 列表(运行中):
 - 运镜(M9·F-09):`kf-add / kf-play / kf-rec / kf-clear`
 - 标注(M9·F-10):`mark / mark-center / mark-clear`
 - 二维码:`qr-apt / qr-guitar / qr-cube`
-- 视图:`immersive / reset-view / walk`(walk 需室内模式)
+- 视图:`immersive / reset-view / walk / flip`(walk 需室内模式;flip 上下翻转按场景记忆)
 
 ### 单元测试(JVM,无设备)
 ```bash
@@ -108,6 +108,8 @@ adb shell am start -W -a android.intent.action.VIEW -d "roam://scene/apartment"
 | Chrome 真 AR `NotSupportedError`(曾通过) | ① MagicOS 把 ARCore force-stop + 禁关联启动,Chrome 拉不起它;② sideload ARCore 1.54 过旧,Chrome 149 要求更新而 Play 判 Magic7「不兼容」拒更 | ① 应用启动管理 → Google Play Services for AR → 关自动管理 + 三开关全开(已做,永久);② sideload 新版 ARCore(APKMirror)或真 AR 留给认证设备 |
 | PlayCanvas dom-overlay 不生效 | `start()` options 塞 `domOverlay:{root}` 不被识别,Chrome 警告 `Must specify a valid domOverlay.root` | start 前设 `app.xr.domOverlay.root = el`(PlayCanvas 自动组装 XRSessionInit) |
 | WebXR anchor 不防漂移 | `anchors.create` 后只存引用不绑事件,splat 不跟随锚点纠偏 | `anchor.on('change')` 同步 splat pose;拖动/重置/退出配套 `destroy()` 解锚,否则 splat 被拉回旧锚点 |
+| lookAt 后画面全黑 | PlayCanvas `lookAt` 混用「数字目标 + Vec3 up」,Vec3 被当 ux → NaN 视图矩阵 | 全数字 `lookAt(tx,ty,tz,ux,uy,uz)` 或双 Vec3,别混 |
+| 自扫/demo 场景画面颠倒、人悬空 | COLMAP/重建系场景 up≠世界+Y,AABB 中心被 floater 拽出房间 | 🙃 翻转按钮(upY 进 lookAt,按场景记 localStorage);indoor 出生点用 splat 密度中位中心 |
 
 ## 切勿擅自做的事
 

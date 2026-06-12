@@ -23,6 +23,7 @@
 | ADR-010 | [自扫场景数据源 - Magic7 拍 + Mac Brush 训(主) + iPhone Scaniverse 备 + 公开 sample 应急](ADR-010-自扫场景数据源-Magic7拍-Mac-Brush训.md) | ✅ Accepted | — |
 | ADR-011 | [AR 集成方案 - PlayCanvas WebXR(hit-test + plane + anchor + scale + reset)](ADR-011-AR集成方案-PlayCanvas-WebXR-hit-test-anchor.md) | ✅ Accepted | — |
 | ADR-012 | [无 ARCore 设备的 AR 降级方案 - AR-lite + VR-imm](ADR-012-无ARCore设备的AR降级方案-AR-lite-VR.md) | ✅ Accepted | — |
+| ADR-013 | [步行碰撞 - splat 体素占据网格(F-12,关闭 Q8)](ADR-013-步行碰撞-splat体素占据网格.md) | ✅ Accepted | — |
 
 ## 状态约定
 

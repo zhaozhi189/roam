@@ -74,7 +74,7 @@ cmd 列表(运行中):
 - 运镜(M9·F-09):`kf-add / kf-play / kf-rec / kf-clear`
 - 标注(M9·F-10):`mark / mark-center / mark-clear`
 - 二维码:`qr-apt / qr-guitar / qr-cube`
-- 视图:`immersive / reset-view`
+- 视图:`immersive / reset-view / walk`(walk 需室内模式)
 
 ### 单元测试(JVM,无设备)
 ```bash

@@ -476,6 +476,10 @@
           <input id="set-show-stats" type="checkbox" style="transform:scale(1.4);accent-color:#8B5CF6;">
         </label>
         <label style="display:flex;justify-content:space-between;align-items:center;font-size:12px;color:rgba(255,255,255,0.8);">
+          <span>步行碰撞(F-12,室内防穿墙)</span>
+          <input id="set-collision" type="checkbox" style="transform:scale(1.4);accent-color:#8B5CF6;">
+        </label>
+        <label style="display:flex;justify-content:space-between;align-items:center;font-size:12px;color:rgba(255,255,255,0.8);">
           <span>WebGPU 实验(M7-4,需重启场景)</span>
           <input id="set-webgpu" type="checkbox" style="transform:scale(1.4);accent-color:#8B5CF6;">
         </label>
@@ -527,7 +531,7 @@
       if (window.RoamBridge && window.RoamBridge.toast) window.RoamBridge.toast(detail.slice(0, 80));
     });
     // M5-2 / M7 · 全局设置(localStorage)— 提到顶部,initSettingsUI / setupCameraOrbitOrIndoor 都依赖
-    const SETTINGS_DEFAULTS = { autoRotate: true, resumeMs: 3, autoSpeed: 0.25, showStats: false, webgpu: false };
+    const SETTINGS_DEFAULTS = { autoRotate: true, resumeMs: 3, autoSpeed: 0.25, showStats: false, webgpu: false, collision: true };
     function loadSettings() {
       try {
         const raw = localStorage.getItem('roam:settings');
@@ -1583,11 +1587,13 @@
       if (!ar) return;
       const stats = document.getElementById('set-show-stats');
       const gpu = document.getElementById('set-webgpu');
+      const coll = document.getElementById('set-collision');
       ar.checked = !!userSettings.autoRotate;
       rm.value = userSettings.resumeMs || 3;
       sp.value = userSettings.autoSpeed || 0.25;
       if (stats) stats.checked = !!userSettings.showStats;
       if (gpu) gpu.checked = !!userSettings.webgpu;
+      if (coll) coll.checked = userSettings.collision !== false;
       function commit() {
         userSettings = {
           autoRotate: ar.checked,
@@ -1595,6 +1601,7 @@
           autoSpeed: Math.max(0.01, Math.min(2, parseFloat(sp.value) || 0.25)),
           showStats: stats ? stats.checked : false,
           webgpu: gpu ? gpu.checked : false,
+          collision: coll ? coll.checked : true,
         };
         saveSettings(userSettings);
         // 实时应用到 currentCam(无需切场景)
@@ -1615,6 +1622,7 @@
       sp.addEventListener('change', commit);
       if (stats) stats.addEventListener('change', commit);
       if (gpu) gpu.addEventListener('change', commit);
+      if (coll) coll.addEventListener('change', commit);
       reset.addEventListener('click', () => {
         if (!confirm('清空所有 localStorage(缩略图 / 历史 / 设置)?')) return;
         try {
@@ -1668,7 +1676,7 @@
         if (sceneStarters[cmd]) { sceneStarters[cmd](); return; }
         // 其他 UI 按钮 cmd → button id 映射
         const map = { record: 'rec-start-btn', stop: 'rec-stop-btn', list: 'rec-list-btn',
-                      pick: 'spz-pick-btn', snap: 'snap-btn', scan: 'scan-btn', gif: 'gif-btn',
+                      pick: 'spz-pick-btn', snap: 'snap-btn', scan: 'scan-btn', gif: 'gif-btn', walk: 'pc-walk-btn',
                       'kf-add': 'kf-add-btn', 'kf-play': 'kf-play-btn', 'kf-rec': 'kf-rec-btn', 'kf-clear': 'kf-clear-btn',
                       'qr-apt': 'qr-apt', 'qr-guitar': 'qr-guitar', 'qr-cube': 'qr-cube' };
         const btn = document.getElementById(map[cmd]);
@@ -1718,8 +1726,9 @@
       markPlacing = false;
       const mkbtn0 = document.getElementById('pc-mark-btn');
       if (mkbtn0) { mkbtn0.style.display = 'none'; mkbtn0.classList.remove('active'); }
-      // 卸旧 splat 引用 + 载入该场景已存标注(localStorage)
+      // 卸旧 splat 引用 + 载入该场景已存标注(localStorage);F-12 碰撞网格随场景失效
       currentSplatResource = null;
+      collGrid = null; collGridSrc = null;
       markersLoadForScene();
       const chip = document.getElementById('pc-scene-chip');
       if (chip) {
@@ -2109,11 +2118,17 @@
       const cy = Math.cos(c.yaw), sy = Math.sin(c.yaw);
       if (c.mode === 'indoor') {
         // M5-1 walk:沿 lookAt 方向匀速前进(forward = (cp*cy, sp, cp*sy) 单位向量)
+        // F-12:开碰撞时下一步撞实体就停在原地(转向后可继续走),不打断 walking 状态
         if (c.walking) {
           const f = c.walkSpeed * dt;
-          c.center.x += cp * cy * f;
-          c.center.y += sp * f;
-          c.center.z += cp * sy * f;
+          const nx = c.center.x + cp * cy * f;
+          const ny = c.center.y + sp * f;
+          const nz = c.center.z + cp * sy * f;
+          if (!userSettings.collision || !collBlocked(nx, ny, nz)) {
+            c.center.x = nx;
+            c.center.y = ny;
+            c.center.z = nz;
+          }
         }
         cameraEntity.setPosition(c.center.x, c.center.y, c.center.z);
         const dir = new pc.Vec3(cp * cy, sp, cp * sy);
@@ -3061,6 +3076,54 @@
         ctx.fillStyle = '#fff';
         ctx.fillText(text, x, y - 5);
       }
+    }
+
+    // ====== Phase2·F-12 · 步行碰撞(体素占据网格,ADR-013,关 Q8)======
+    // 3DGS 没 mesh 不能物理引擎碰撞 → 把 splat centers 落进 0.25m 体素,
+    // ≥4 个 splat 的体素算实体(滤孤立 floater);步行每帧检查下一步位置
+    // 周围 3x3x3 体素,撞实体就不前进(用户转向即可继续走)。
+    // 网格按 resource 缓存,首次按需构建(公寓 ~百万 splat 一次 <100ms)。
+    let collGrid = null;       // Set<packed int>
+    let collGridSrc = null;    // 来源 resource,切场景自动失效
+    const COLL_VOX = 0.25;     // 体素边长(m)
+    const COLL_MIN = 4;        // 实体判定:体素内最少 splat 数
+
+    function collGetGrid() {
+      const r = currentSplatResource;
+      if (!r) return null;
+      if (collGridSrc === r && collGrid) return collGrid;
+      const centers = splatCenters();
+      if (!centers) return null;
+      const t0 = performance.now();
+      const counts = new Map();
+      for (let i = 0; i < centers.length; i += 3) {
+        // 1024³ 网格覆盖 ±128m,场外 floater 直接丢
+        const ix = Math.floor(centers[i] / COLL_VOX) + 512;
+        const iy = Math.floor(centers[i + 1] / COLL_VOX) + 512;
+        const iz = Math.floor(centers[i + 2] / COLL_VOX) + 512;
+        if (ix < 0 || ix > 1023 || iy < 0 || iy > 1023 || iz < 0 || iz > 1023) continue;
+        const k = ix | (iy << 10) | (iz << 20);
+        counts.set(k, (counts.get(k) || 0) + 1);
+      }
+      collGrid = new Set();
+      counts.forEach((n, k) => { if (n >= COLL_MIN) collGrid.add(k); });
+      collGridSrc = r;
+      console.log('[Roam] F-12 碰撞网格: ' + collGrid.size + '/' + counts.size + ' 实体体素,'
+        + (performance.now() - t0).toFixed(0) + 'ms');
+      return collGrid;
+    }
+
+    // 下一步位置是否撞实体(3x3x3 邻域 ≈ 0.25~0.37m 碰撞半径;y-1 是脚下 0.25m,室内地面在 ~1.5m 下不受影响)
+    function collBlocked(x, y, z) {
+      const g = collGetGrid();
+      if (!g) return false;   // 无 splat 数据(立方体)不拦
+      const cx = Math.floor(x / COLL_VOX) + 512;
+      const cy2 = Math.floor(y / COLL_VOX) + 512;
+      const cz = Math.floor(z / COLL_VOX) + 512;
+      for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) for (let dz = -1; dz <= 1; dz++) {
+        if (g.has((cx + dx) | ((cy2 + dy) << 10) | ((cz + dz) << 20))) return true;
+      }
+      return false;
     }
 
     // ====== M9·F-11 · GIF 导出(纯 JS GIF89a:median-cut 256 色 + LZW,零 vendor 依赖)======

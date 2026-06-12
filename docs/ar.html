@@ -101,6 +101,26 @@
     text-shadow: 0 1px 3px rgba(0,0,0,0.8); padding: 4px 10px;
     background: rgba(0,0,0,0.35); display: inline-block; border-radius: 999px;
   }
+  /* F-12+ · 2D 漫游控制(walk/orbit 切换 + 翻转)+ 虚拟摇杆(XR/lite 模式自动隐藏)*/
+  #roam-bar { position: fixed; left: 12px; bottom: 14px; z-index: 5; display: flex; gap: 8px; }
+  #roam-bar button {
+    margin: 0; padding: 8px 14px; font-size: 13px; cursor: pointer;
+    background: rgba(255,255,255,0.10); color: #fff;
+    border: 1px solid rgba(255,255,255,0.18); border-radius: 999px; width: auto;
+  }
+  #roam-bar button.active { background: rgba(139,92,246,0.6); }
+  #joy {
+    position: fixed; right: 16px; bottom: 64px; z-index: 5;
+    width: 104px; height: 104px; border-radius: 50%;
+    background: rgba(255,255,255,0.08); border: 1.5px solid rgba(255,255,255,0.18);
+    display: none; touch-action: none;
+  }
+  #joy-knob {
+    position: absolute; left: 50%; top: 50%;
+    width: 44px; height: 44px; border-radius: 50%;
+    background: rgba(139,92,246,0.75); box-shadow: 0 2px 10px rgba(0,0,0,0.4);
+    transform: translate(-50%, -50%); pointer-events: none;
+  }
 </style>
 </head>
 <body>
@@ -131,6 +151,13 @@
   </div>
   <div id="fb-hint"></div>
 </div>
+
+<!-- F-12+ · 2D 漫游控制(同 App:走进场景 + 上下翻转;进 XR/lite 自动藏)-->
+<div id="roam-bar">
+  <button id="walk-btn">🚶 漫游</button>
+  <button id="flip-btn">🙃 翻转</button>
+</div>
+<div id="joy"><div id="joy-knob"></div></div>
 
 <script src="vendor/playcanvas.min.js"></script>
 <script src="vendor/spz-loader-playcanvas.umd.cjs"></script>
@@ -225,8 +252,15 @@ const orbit = {
   AUTO_RESUME_MS: 3000,
   AUTO_SPEED: 0.25,
   enabled: true,         // 进 AR/AR-lite/VR 时关闭(由各模式自管相机)
+  // F-12+ · 漫游模式(同 App indoor):walk = 第一人称走进场景
+  mode: 'orbit',         // 'orbit' | 'walk'
+  upY: 1,                // 上下翻转(重建场景 up 常不是世界 +Y),按场景 localStorage 记忆
+  walkPos: new pc.Vec3(),
+  walkSpawn: new pc.Vec3(),
+  walkSpeed: 0.6,        // m/s(摇杆满推 1.5x)
 };
 orbit.init = { yaw: orbit.yaw, pitch: orbit.pitch, radius: orbit.radius };
+try { orbit.upY = localStorage.getItem('roam:upflip:' + sceneId) === '-1' ? -1 : 1; } catch (e) {}
 
 function setupOrbit(center, radius) {
   orbit.center = center.clone();
@@ -238,21 +272,56 @@ function setupOrbit(center, radius) {
   orbit.lastInteractMs = 0;
 }
 
+// F-12+ · 漫游 UI 显隐每帧同步(orbit.enabled 在 AR/lite/VR 多处开关,集中在这反应)
+let _uiCache = '';
+function syncRoamUi() {
+  const key = orbit.enabled + ':' + orbit.mode + ':' + orbit.upY;
+  if (key === _uiCache) return;
+  _uiCache = key;
+  const bar = document.getElementById('roam-bar');
+  const joy = document.getElementById('joy');
+  const wbtn = document.getElementById('walk-btn');
+  const fbtn = document.getElementById('flip-btn');
+  if (bar) bar.style.display = orbit.enabled ? 'flex' : 'none';
+  if (joy) joy.style.display = (orbit.enabled && orbit.mode === 'walk') ? 'block' : 'none';
+  if (wbtn) { wbtn.classList.toggle('active', orbit.mode === 'walk'); wbtn.textContent = orbit.mode === 'walk' ? '🌍 环绕' : '🚶 漫游'; }
+  if (fbtn) fbtn.classList.toggle('active', orbit.upY === -1);
+}
+
 app.on('update', (dt) => {
+  syncRoamUi();
   if (!orbit.enabled) return;
   const c = orbit;
+  const upY = c.upY || 1;
+  const cy0 = Math.cos(c.yaw), sy0 = Math.sin(c.yaw);
+  if (c.mode === 'walk') {
+    // 摇杆平移(前后 + 左右,带碰撞;视觉右 = forward × up,翻转时取反)
+    if (joyState.mag > 0.05) {
+      const f = c.walkSpeed * 1.5 * dt * joyState.mag;
+      const mx = cy0 * -joyState.dy + (-sy0 * upY) * joyState.dx;
+      const mz = sy0 * -joyState.dy + (cy0 * upY) * joyState.dx;
+      const L = Math.hypot(mx, mz) || 1;
+      const nx = c.walkPos.x + mx / L * f, nz = c.walkPos.z + mz / L * f;
+      if (!collBlocked(nx, c.walkPos.y, nz)) { c.walkPos.x = nx; c.walkPos.z = nz; }
+    }
+    camera.setPosition(c.walkPos.x, c.walkPos.y, c.walkPos.z);
+    const cp = Math.cos(c.pitch), sp = Math.sin(c.pitch);
+    camera.lookAt(
+      c.walkPos.x + cp * cy0, c.walkPos.y + sp, c.walkPos.z + cp * sy0,
+      0, upY, 0);
+    return;
+  }
   if (c.autoRotate || (performance.now() - c.lastInteractMs > c.AUTO_RESUME_MS)) {
     c.yaw += dt * c.AUTO_SPEED;
     c.autoRotate = true;
   }
   const cp = Math.cos(c.pitch), sp = Math.sin(c.pitch);
-  const cy = Math.cos(c.yaw), sy = Math.sin(c.yaw);
   camera.setPosition(
-    c.center.x + c.radius * cp * cy,
+    c.center.x + c.radius * cp * cy0,
     c.center.y + c.radius * sp + c.radius * 0.15,
-    c.center.z + c.radius * cp * sy
+    c.center.z + c.radius * cp * sy0
   );
-  camera.lookAt(c.center);
+  camera.lookAt(c.center.x, c.center.y, c.center.z, 0, upY, 0);
 });
 
 // orbit 触摸(只在非 XR/非 lite 模式生效)
@@ -277,11 +346,17 @@ app.on('update', (dt) => {
     if (touches.length === 1) {
       const now = performance.now();
       if (now - lastTapMs < DBLTAP_MS) {
-        orbit.yaw = orbit.init.yaw;
-        orbit.pitch = orbit.init.pitch;
-        orbit.radius = orbit.init.radius;
-        orbit.autoRotate = true;
-        orbit.lastInteractMs = 0;
+        if (orbit.mode === 'walk') {
+          // walk 双击:回出生点 + 视线放平
+          orbit.walkPos.copy(orbit.walkSpawn);
+          orbit.pitch = 0;
+        } else {
+          orbit.yaw = orbit.init.yaw;
+          orbit.pitch = orbit.init.pitch;
+          orbit.radius = orbit.init.radius;
+          orbit.autoRotate = true;
+          orbit.lastInteractMs = 0;
+        }
         lastTapMs = 0;
       } else { lastTapMs = now; }
     }
@@ -294,11 +369,14 @@ app.on('update', (dt) => {
     if (now.length === 1 && touches.length === 1) {
       const dx = now[0].x - touches[0].x;
       const dy = now[0].y - touches[0].y;
-      orbit.yaw -= dx * ROT_SENS;
-      orbit.pitch += dy * ROT_SENS;     // orbit:swipe up = 仰视
+      // F-12+ 翻转时画面镜像,方向乘 upY 保持直觉;walk 模式 swipe up = 抬头(同 App indoor)
+      const u = orbit.upY || 1;
+      orbit.yaw -= dx * ROT_SENS * u;
+      const sign = orbit.mode === 'walk' ? -1 : 1;
+      orbit.pitch += dy * ROT_SENS * sign * u;
       if (orbit.pitch > PITCH_LIMIT) orbit.pitch = PITCH_LIMIT;
       if (orbit.pitch < -PITCH_LIMIT) orbit.pitch = -PITCH_LIMIT;
-    } else if (now.length === 2 && touches.length === 2) {
+    } else if (now.length === 2 && touches.length === 2 && orbit.mode === 'orbit') {
       const d = getDist(now[0], now[1]);
       if (lastPinchDist > 0) {
         const scale = lastPinchDist / d;
@@ -322,6 +400,130 @@ app.on('update', (dt) => {
   canvas.addEventListener('touchend', onEnd, { passive: false });
   canvas.addEventListener('touchcancel', onEnd, { passive: false });
 })();
+
+// ============================================================
+// 2c. F-12+ · 漫游支撑:splat centers / 密度中位出生点 / 体素碰撞 / 摇杆 / 翻转
+//     与 App index.html 同算法(ADR-013),此处为 ar.html 无 Bridge 版
+// ============================================================
+let currentSplatRes = null;                 // loadGSplat / loadSpz 加载后赋值
+let joyState = { dx: 0, dy: 0, mag: 0 };    // 虚拟摇杆(-1..1)
+let collGrid = null, collGridSrc = null;
+const COLL_VOX = 0.25, COLL_MIN = 4;
+
+function splatCentersAr() {
+  const r = currentSplatRes;
+  if (!r) return null;
+  if (r._roamCenters) return r._roamCenters;
+  if (r.centers && r.centers.length) { r._roamCenters = r.centers; return r.centers; }
+  try {
+    if (r.gsplatData && r.gsplatData.getCenters) {
+      r._roamCenters = r.gsplatData.getCenters();
+      return r._roamCenters;
+    }
+  } catch (e) { console.warn('[Roam] getCenters 失败:', e); }
+  return null;
+}
+
+function splatMedianCenter() {
+  const centers = splatCentersAr();
+  if (!centers) return null;
+  const stride = Math.max(1, Math.floor(centers.length / 3 / 30000)) * 3;
+  const xs = [], ys = [], zs = [];
+  for (let i = 0; i < centers.length; i += stride) {
+    xs.push(centers[i]); ys.push(centers[i + 1]); zs.push(centers[i + 2]);
+  }
+  const mid = (a) => { a.sort((p, q) => p - q); return a[a.length >> 1]; };
+  return new pc.Vec3(mid(xs), mid(ys), mid(zs));
+}
+
+function collGetGrid() {
+  const r = currentSplatRes;
+  if (!r) return null;
+  if (collGridSrc === r && collGrid) return collGrid;
+  const centers = splatCentersAr();
+  if (!centers) return null;
+  const counts = new Map();
+  for (let i = 0; i < centers.length; i += 3) {
+    const ix = Math.floor(centers[i] / COLL_VOX) + 512;
+    const iy = Math.floor(centers[i + 1] / COLL_VOX) + 512;
+    const iz = Math.floor(centers[i + 2] / COLL_VOX) + 512;
+    if (ix < 0 || ix > 1023 || iy < 0 || iy > 1023 || iz < 0 || iz > 1023) continue;
+    const k = ix | (iy << 10) | (iz << 20);
+    counts.set(k, (counts.get(k) || 0) + 1);
+  }
+  collGrid = new Set();
+  counts.forEach((n, k) => { if (n >= COLL_MIN) collGrid.add(k); });
+  collGridSrc = r;
+  console.log('[Roam] 碰撞网格:', collGrid.size, '实体体素');
+  return collGrid;
+}
+
+function collBlocked(x, y, z) {
+  const g = collGetGrid();
+  if (!g) return false;
+  const cx = Math.floor(x / COLL_VOX) + 512;
+  const cy = Math.floor(y / COLL_VOX) + 512;
+  const cz = Math.floor(z / COLL_VOX) + 512;
+  for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) for (let dz = -1; dz <= 1; dz++) {
+    if (g.has((cx + dx) | ((cy + dy) << 10) | ((cz + dz) << 20))) return true;
+  }
+  return false;
+}
+
+// 虚拟摇杆(touch + 鼠标)
+(function initJoy() {
+  const joy = document.getElementById('joy');
+  const knob = document.getElementById('joy-knob');
+  if (!joy) return;
+  const MAX = 30;   // knob 最大偏移 px
+  function setFrom(t) {
+    const rect = joy.getBoundingClientRect();
+    let dx = t.clientX - (rect.left + rect.width / 2);
+    let dy = t.clientY - (rect.top + rect.height / 2);
+    const L = Math.hypot(dx, dy);
+    if (L > MAX) { dx = dx / L * MAX; dy = dy / L * MAX; }
+    knob.style.transform = 'translate(calc(-50% + ' + dx + 'px), calc(-50% + ' + dy + 'px))';
+    joyState.dx = dx / MAX; joyState.dy = dy / MAX;
+    joyState.mag = Math.min(1, L / MAX);
+  }
+  function reset() {
+    knob.style.transform = 'translate(-50%, -50%)';
+    joyState.dx = joyState.dy = joyState.mag = 0;
+  }
+  joy.addEventListener('touchstart', (e) => { e.preventDefault(); setFrom(e.touches[0]); }, { passive: false });
+  joy.addEventListener('touchmove', (e) => { e.preventDefault(); setFrom(e.touches[0]); }, { passive: false });
+  joy.addEventListener('touchend', (e) => { e.preventDefault(); if (!e.touches.length) reset(); }, { passive: false });
+  joy.addEventListener('touchcancel', reset);
+  let md = false;
+  joy.addEventListener('mousedown', (e) => { md = true; setFrom(e); });
+  window.addEventListener('mousemove', (e) => { if (md) setFrom(e); });
+  window.addEventListener('mouseup', () => { if (md) { md = false; reset(); } });
+})();
+
+// 🚶 漫游 / 🌍 环绕 切换
+document.getElementById('walk-btn').addEventListener('click', () => {
+  if (orbit.mode === 'walk') {
+    orbit.mode = 'orbit';
+    orbit.autoRotate = true;
+    orbit.lastInteractMs = 0;
+    setStatus('环绕模式');
+    return;
+  }
+  const spawn = splatMedianCenter() || orbit.center.clone();
+  orbit.walkSpawn.copy(spawn);
+  orbit.walkPos.copy(spawn);
+  orbit.pitch = 0;
+  orbit.mode = 'walk';
+  collGetGrid();   // 预热碰撞网格(一次 <100ms)
+  setStatus('漫游模式:摇杆移动 · 拖屏转视角 · 双击回起点');
+});
+
+// 🙃 上下翻转(重建场景 up 常不是世界 +Y;按场景 localStorage 记忆)
+document.getElementById('flip-btn').addEventListener('click', () => {
+  orbit.upY = (orbit.upY || 1) === 1 ? -1 : 1;
+  try { localStorage.setItem('roam:upflip:' + sceneId, String(orbit.upY)); } catch (e) {}
+  setStatus(orbit.upY === -1 ? '🙃 已上下翻转(此场景记忆)' : '已恢复正向');
+});
 
 // ============================================================
 // 3. 场景加载(gsplat .sog/.ply + spz 两路;最终 entity 名统一 'splat')
@@ -382,6 +584,7 @@ function loadGSplat(url) {
       const splat = new pc.Entity('splat');
       splat.addComponent('gsplat', { asset });
       app.root.addChild(splat);
+      currentSplatRes = asset.resource || null;   // F-12+ 漫游碰撞/出生点用
       fitOrbitToAABB(asset.resource && asset.resource.aabb);
       resolve(splat);
     });
@@ -410,6 +613,8 @@ async function loadSpz(url) {
     // AABB 自适应
     const comp = entity.gsplat;
     const aabb = comp && (comp.aabb || (comp.instance && comp.instance.meshInstance && comp.instance.meshInstance.aabb));
+    currentSplatRes = (comp && ((comp.asset && comp.asset.resource)
+      || (comp.instance && comp.instance.resource))) || null;   // F-12+ 漫游碰撞/出生点用
     fitOrbitToAABB(aabb);
     return entity;
   })();

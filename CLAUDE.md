@@ -110,6 +110,7 @@ adb shell am start -W -a android.intent.action.VIEW -d "roam://scene/apartment"
 | WebXR anchor 不防漂移 | `anchors.create` 后只存引用不绑事件,splat 不跟随锚点纠偏 | `anchor.on('change')` 同步 splat pose;拖动/重置/退出配套 `destroy()` 解锚,否则 splat 被拉回旧锚点 |
 | lookAt 后画面全黑 | PlayCanvas `lookAt` 混用「数字目标 + Vec3 up」,Vec3 被当 ux → NaN 视图矩阵 | 全数字 `lookAt(tx,ty,tz,ux,uy,uz)` 或双 Vec3,别混 |
 | 自扫/demo 场景画面颠倒、人悬空 | COLMAP/重建系场景 up≠世界+Y,AABB 中心被 floater 拽出房间 | 🙃 翻转按钮(upY 进 lookAt,按场景记 localStorage);indoor 出生点用 splat 密度中位中心 |
+| 自扫房间重建漂移、人站房间外 | 房间是绕圈拍,首尾必闭环;COLMAP `sequential` 只配相邻帧漏掉闭环 → 整圈位姿累积漂移 | `scan-train.sh` matching 改 `pycolmap.match_exhaustive`(全对匹配天然闭环,不需 vocab tree);代价 O(n²) ~150 帧 1-2 分钟 |
 
 ## 切勿擅自做的事
 

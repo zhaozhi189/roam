@@ -24,7 +24,8 @@
 # ⚠️ 坑(2026-06-10 实测):brew 版 COLMAP 4.0.4 的 matcher 在 macOS 26
 #   (Apple Silicon)上 100% SIGSEGV(exhaustive/sequential、单/多线程都崩),
 #   只有 feature_extractor 能用 → matching + mapping 走 pycolmap(官方
-#   预编译 wheel,无此 bug,且 154 帧 sequential 匹配 <30s)。
+#   预编译 wheel,无此 bug)。matching 用 exhaustive 全对匹配:绕圈拍的
+#   房间/物体首尾必闭环,sequential 漏闭环会让重建漂移(实测人站房间外)。
 # =============================================================
 set -euo pipefail
 
@@ -78,9 +79,13 @@ import sys, pathlib
 import pycolmap
 work = pathlib.Path(sys.argv[1])
 db, images, out = work / 'colmap.db', work / 'images', work / 'sparse'
-print('  pycolmap sequential matching…', flush=True)
-opts = pycolmap.SequentialPairingOptions(overlap=20, loop_detection=False)
-pycolmap.match_sequential(db, pairing_options=opts)
+print('  pycolmap exhaustive matching…', flush=True)
+# 房间/物体都是绕圈拍 → 首尾必闭环。sequential 只匹配相邻帧(overlap=20),
+# 漏掉闭环对 → 重建漂移甚至失败(自扫房间实测「人站在外围/房间外」根因)。
+# exhaustive 全对匹配,直接捕获闭环,且不需要 vocab tree
+# (sequential 的 loop_detection 那条要额外下词汇树,多一个失败点)。
+# 代价:O(n²),~150 帧约 1-2 分钟(sequential 约 30s),换重建不漂值得。
+pycolmap.match_exhaustive(db)
 print('  pycolmap incremental mapping…', flush=True)
 out.mkdir(exist_ok=True)
 maps = pycolmap.incremental_mapping(db, images, out)

@@ -138,6 +138,18 @@ Scaniverse / KIRI / Polycam 这类**端到端工具**把两步合在手机里,�
 | Brush 模型质量 vs 公寓 demo | 大致接近 | 待测 |
 | iPhone Scaniverse skip account | 真的能跳过登录 | 待测(机会主义) |
 
+## 为什么训练必须在桌面 · 手机跑不了完整管线(2026-06-13 厘清)
+
+zhi 问过「Magic7 有 GPU,能不能把训练也搬上手机」。厘清结论:**GPU 不是瓶颈,COLMAP 才是。**
+
+- **训练那步,手机 GPU 理论上能凑合** — Brush 基于 wgpu,本身有 WebGPU/浏览器版。但手机 GPU 弱于 Mac M 芯片,且训练峰值吃显存大(2026-06-13 实测自扫房间 48s 视频,峰值 **2.99GB**)、30000 步耗时长,手机发热降频,时间不可控。
+- **真正的硬墙是 COLMAP(SfM 求相机位姿)** — 3DGS 训练必须先有每帧相机位姿,这步是 CPU + Python(pycolmap)密集计算,**手机无运行环境,跑不了**。GPU 再强也绕不过这步。
+- **唯一绕开 COLMAP 的路 = 设备端 SLAM 实时给位姿(ARCore/ARKit)** — 这正是 Scaniverse 类端到端 App 的做法。但「ARCore 取位姿 → 喂 WebGPU 训练」是一条全新复杂链路,等于自研 Scaniverse,远超个人项目范围,违本 ADR 的解耦初衷与 YAGNI。
+
+**所以「采集在手机 / 训练在 Mac」的分工不是将就,是被 COLMAP 这步钉死的最优解** —— 呼应上文「关键认知」:采集与训练解耦后,训练那半天然属于有 CPU+Python+桌面 GPU 的 Mac。
+
+> 注:即便 Magic7 已补齐 ARCore(ADR-012 v0.4 实测),它只在系统 Chrome 暴露 `navigator.xr`、且只服务于「展示端 AR/VR」;Roam WebView 拿不到,更谈不上拿它的位姿喂训练。展示端 AR/VR 与采集端训练是正交的两件事。
+
 ## 何时回头看
 
 - **Scaniverse 国内登录修复** → 切回 Scaniverse 主路(质量最稳),Brush 退备
@@ -155,3 +167,4 @@ Scaniverse / KIRI / Polycam 这类**端到端工具**把两步合在手机里,�
 |---|---|---|
 | v0.1 | 2026-05-22 | 初版,M7 后 C 路径 landing 完整闭环、需要 ship 真自扫样例场景时沉淀;锁定 Brush 主路 + iPhone Scaniverse 备 + 公开 sample 应急三层策略 |
 | v0.2 | 2026-05-22 | **澄清重要误解**:Brush 是「只训不拍」工具,拍摄设备完全解耦 → 主路明确为「Magic7 Pro 系统相机拍 + Mac Brush 训」,iPhone 不再是主路必需。新增「关键认知」段强调采集 / 训练可分离。备选方案补充 Scaniverse Android sideload 路线及未选原因。 |
+| v0.3 | 2026-06-13 | 新增「为什么训练必须在桌面」小节,厘清 zhi 提问「手机有 GPU 能否搬训练上手机」:**瓶颈是 COLMAP(SfM 位姿,CPU+Python,手机无环境),不是 GPU**;绕开 COLMAP 要设备端 SLAM 喂训练 = 自研 Scaniverse,违解耦初衷。结合 2026-06-13 自扫房间实测(exhaustive matching 重建 + 训练峰值 2.99GB)沉淀。 |

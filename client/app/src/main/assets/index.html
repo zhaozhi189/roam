@@ -277,6 +277,25 @@
     .env-info .key { color: rgba(255,255,255,0.4); min-width: 90px; }
     .env-info .val { color: rgba(255,255,255,0.7); flex: 1; word-break: break-all; }
     .env-info .val.err { color: #F87171; }
+
+    /* ADR-014 · 引导式自扫录制 HUD */
+    #scan-rec-video { display:none; position:fixed; inset:0; width:100%; height:100%; object-fit:cover; z-index:2147483600; background:#000; }
+    #scan-rec-video.active { display:block; }
+    #scan-rec-hud { display:none; position:fixed; inset:0; z-index:2147483601; pointer-events:none; color:#fff; font-family:system-ui,sans-serif; text-shadow:0 1px 3px rgba(0,0,0,.8); }
+    #scan-rec-hud.active { display:block; }
+    #scan-rec-instr { position:absolute; top:14%; left:0; right:0; text-align:center; font-size:24px; font-weight:700; padding:0 24px; }
+    /* v2 · 换段时指令弹跳一下,配合语音+震动提醒 */
+    #scan-rec-instr.bump { animation: scanRecBump .6s ease; }
+    @keyframes scanRecBump { 0%{transform:scale(1)} 35%{transform:scale(1.18)} 100%{transform:scale(1)} }
+    #scan-rec-ring { position:absolute; top:42%; left:50%; transform:translate(-50%,-50%); width:120px; height:120px; border-radius:50%;
+      background:conic-gradient(#4caf50 var(--pct,0%), rgba(255,255,255,.25) 0); display:flex; align-items:center; justify-content:center; }
+    #scan-rec-ring::after { content:''; position:absolute; inset:10px; border-radius:50%; background:rgba(0,0,0,.35); }
+    #scan-rec-pct { position:relative; font-size:20px; font-weight:700; }
+    #scan-rec-warn { position:absolute; top:58%; left:0; right:0; text-align:center; font-size:16px; font-weight:700; color:#ff5252; min-height:20px; }
+    #scan-rec-cover { position:absolute; bottom:120px; left:0; right:0; text-align:center; font-size:15px; }
+    #scan-rec-timer { position:absolute; bottom:90px; left:0; right:0; text-align:center; font-size:15px; }
+    #scan-rec-stop { position:fixed; bottom:max(env(safe-area-inset-bottom),24px); left:50%; transform:translateX(-50%);
+      z-index:2147483602; pointer-events:auto; background:#ff3b30; color:#fff; border:none; border-radius:28px; padding:14px 36px; font-size:17px; font-weight:700; }
   </style>
 </head>
 <body>
@@ -417,6 +436,8 @@
         <button id="mng-refresh-btn" style="flex:1;background:rgba(255,255,255,0.08);box-shadow:none;border:1px solid rgba(255,255,255,0.12);font-size:12px;">刷新列表</button>
         <button id="mng-pull-sample-btn" style="flex:1;background:rgba(139,92,246,0.20);box-shadow:none;border:1px solid rgba(139,92,246,0.40);color:#C4B5FD;font-size:12px;">📦 拉远程 sample</button>
       </div>
+      <!-- ADR-014 · 引导式自扫录制入口(自扫是场景来源的一部分)-->
+      <button id="scan-rec-btn" onclick="enterScanRec()" style="width:100%;margin-top:6px;background:rgba(34,197,94,0.20);box-shadow:none;border:1px solid rgba(34,197,94,0.40);color:#86EFAC;font-size:13px;">📷 引导式自扫录制</button>
       <div class="meta" style="margin-top:6px;font-size:11px;color:rgba(255,255,255,0.5);">拉 <code>zhaozhi189.github.io/roam/scenes/sample.compressed.ply</code> 入库(ADR-010 自扫数据源,占位)</div>
       <div id="mng-list" style="margin-top:10px;font-size:11px;font-family:ui-monospace,monospace;color:rgba(255,255,255,0.7);"></div>
     </div>
@@ -492,6 +513,17 @@
       </div>
       <div class="hint" id="ar-lite-hint">📱 AR-lite · 单指拖转视角 · 双指捏缩放</div>
     </div>
+
+    <!-- ADR-014 · 引导式自扫录制(后摄全屏预览 + 脚本分段引导 HUD)-->
+    <video id="scan-rec-video" autoplay playsinline muted></video>
+    <div id="scan-rec-hud">
+      <div id="scan-rec-instr">准备…</div>
+      <div id="scan-rec-ring"><span id="scan-rec-pct">0%</span></div>
+      <div id="scan-rec-warn"></div>
+      <div id="scan-rec-cover">覆盖: <span id="scan-rec-ceil">□天花板</span>　<span id="scan-rec-floor">□地板</span></div>
+      <div id="scan-rec-timer">● REC 00:00 / 00:00</div>
+    </div>
+    <button id="scan-rec-stop" style="display:none;">■ 停止</button>
 
     <!-- M5-2 · ⑨ 设置 -->
     <div class="card">
@@ -1322,6 +1354,247 @@
     window.resetARLite = resetARLite;
 
     // ============================================================
+    // ADR-014 · 引导式自扫录制(后摄预览 + 脚本分段引导 + MediaRecorder 存相册)
+    // Task 1-4:HUD/预览/状态机/录制保存;Task 5:陀螺仪辅助(俯仰覆盖打勾 + 角速度警告),拿不到则自动降级纯脚本
+    // ============================================================
+    let scanRecOrientHandler = null;  // deviceorientation 监听器引用(进场注册/退场移除)
+    // 房间引导脚本 v2(每段:文案/语音/最短秒/最长秒/目标俯仰角deg(null=不判)/是否判角速度/覆盖标记/方位覆盖目标扇区数)
+    // v2 核心:orbit/up/down 段由「方位覆盖完成度」驱动推进(转够了才走,最长 maxSec 兜底),
+    //         不再掐死秒数 —— 回应 zhi 实拍反馈「20 秒转一圈太赶、不知道拍没拍全」。
+    //         陀螺仪不可用时 azimuthGoal 不生效,自动回退纯时间驱动(sec)。
+    // 方位覆盖:0~360° 切 36 个 10° 扇区,deviceorientation.alpha 落在哪格点亮哪格。
+    const ROOM_GUIDE_STEPS = [
+      { id: 'ready', label: '竖握手机 · 站房间一角 · 离墙 1.5m+', voice: '准备,竖握手机,站在房间一角,离墙一米五以上',
+        sec: 4,  maxSec: 4,  pitch: null, checkSpeed: false, cover: null,    azimuthGoal: 0 },
+      { id: 'orbit', label: '① 缓慢转一圈 · 环亮满为止',          voice: '开始,缓慢原地转一圈,或沿墙走一圈。转到哪,环上哪格就亮,亮满一圈就好',
+        sec: 15, maxSec: 45, pitch: null, checkSpeed: true,  cover: null,    azimuthGoal: 32 },
+      { id: 'up',    label: '② 抬头 30° · 仰着再转一圈',          voice: '很好。现在抬头三十度,保持仰角,再慢慢转一圈,扫天花板',
+        sec: 8,  maxSec: 30, pitch: 25,   checkSpeed: true,  cover: 'ceil',  azimuthGoal: 24 },
+      { id: 'down',  label: '③ 低头 30° · 扫地面 + 家具底',       voice: '低头三十度,扫地面和家具底部,也转一圈',
+        sec: 8,  maxSec: 30, pitch: -25,  checkSpeed: true,  cover: 'floor', azimuthGoal: 24 },
+      { id: 'loop',  label: '④ 转回最开始那面墙 · 停 2 秒',       voice: '最后一步,转回最开始拍的那面墙,对准它,停两秒',
+        sec: 4,  maxSec: 4,  pitch: null, checkSpeed: false, cover: null,    azimuthGoal: 0 },
+    ];
+    const scanRecState = {
+      active: false, stream: null,
+      recorder: null, chunks: [],
+      stepIdx: 0, stepElapsed: 0, totalElapsed: 0, totalSec: 0,
+      timer: null, wasFullscreen: false,
+      orient: { available: false, beta: 0, lastAlpha: null, lastT: 0, speedWarn: false },
+      cover: { ceil: false, floor: false },
+      azimuth: new Set(),  // v2 · 当前段已覆盖的方位扇区(0~35,每段重置)
+    };
+
+    function fmtMMSS(s) { const m = Math.floor(s / 60), x = Math.floor(s % 60); return String(m).padStart(2,'0')+':'+String(x).padStart(2,'0'); }
+
+    // v2 · 方位覆盖环:36 个 10° 扇区拼 conic-gradient,已扫方位亮绿
+    function scanRecAzimuthGradient(set) {
+      const segs = [];
+      for (let i = 0; i < 36; i++) {
+        segs.push((set.has(i) ? '#4caf50' : 'rgba(255,255,255,.25)') + ' ' + (i * 10) + 'deg ' + ((i + 1) * 10) + 'deg');
+      }
+      return 'conic-gradient(' + segs.join(',') + ')';
+    }
+
+    // v2 · 换段播报:语音(主指引,拍摄时看不清屏)+ 震动 + 大字弹跳
+    function scanRecAnnounce(step) {
+      if (window.RoamBridge && typeof RoamBridge.speak === 'function') RoamBridge.speak(step.voice || step.label);
+      if (window.RoamBridge && typeof RoamBridge.vibrate === 'function') RoamBridge.vibrate(200);
+      const instr = document.getElementById('scan-rec-instr');
+      instr.classList.remove('bump'); void instr.offsetWidth; instr.classList.add('bump');
+    }
+
+    function scanRecAdvanceStep() {
+      const st = scanRecState;
+      st.stepIdx++; st.stepElapsed = 0; st.azimuth = new Set();
+      const next = ROOM_GUIDE_STEPS[st.stepIdx];
+      if (next) scanRecAnnounce(next);
+    }
+
+    function scanRecRefreshHud() {
+      const st = scanRecState, step = ROOM_GUIDE_STEPS[st.stepIdx];
+      document.getElementById('scan-rec-instr').textContent = step ? step.label : '完成 ✅';
+      const ring = document.getElementById('scan-rec-ring');
+      let pct;
+      if (step && step.azimuthGoal && st.orient.available) {
+        // 覆盖驱动段:环 = 本段方位覆盖(转到哪亮到哪),中心 % = 本段完成度
+        pct = Math.min(100, Math.round(st.azimuth.size / step.azimuthGoal * 100));
+        ring.style.background = scanRecAzimuthGradient(st.azimuth);
+      } else {
+        // 时间驱动段(或陀螺仪降级):环 = 总时间进度(标称)
+        pct = st.totalSec ? Math.min(100, Math.round(st.totalElapsed / st.totalSec * 100)) : 0;
+        ring.style.background = '';  // 还原 CSS 的 --pct conic-gradient
+        ring.style.setProperty('--pct', pct + '%');
+      }
+      document.getElementById('scan-rec-pct').textContent = pct + '%';
+      document.getElementById('scan-rec-timer').textContent = '● REC ' + fmtMMSS(st.totalElapsed);
+      document.getElementById('scan-rec-ceil').textContent = (st.cover.ceil ? '☑' : '□') + '天花板';
+      document.getElementById('scan-rec-floor').textContent = (st.cover.floor ? '☑' : '□') + '地板';
+    }
+
+    function scanRecTick() {
+      const st = scanRecState;
+      st.stepElapsed += 0.2; st.totalElapsed += 0.2;
+      const step = ROOM_GUIDE_STEPS[st.stepIdx];
+      // v2 · 完成度驱动推进:过了最短时长后,方位覆盖达标(或陀螺仪不可用回退时间)即换段;maxSec 兜底
+      if (step && st.stepElapsed >= step.sec) {
+        const goalMet = !step.azimuthGoal || !st.orient.available || st.azimuth.size >= step.azimuthGoal;
+        if (goalMet || st.stepElapsed >= (step.maxSec || step.sec)) scanRecAdvanceStep();
+      }
+      if (st.stepIdx >= ROOM_GUIDE_STEPS.length) {
+        // 引导走完 → 自动停录保存
+        scanRecRefreshHud();
+        scanRecFinish();
+        return;
+      }
+      // 陀螺仪反馈:角速度警告 + 俯仰覆盖打勾(用当前段,避免刚切段时错位)
+      const o = st.orient;
+      if (o.available) {
+        const curStep = ROOM_GUIDE_STEPS[st.stepIdx];
+        const warnEl = document.getElementById('scan-rec-warn');
+        warnEl.textContent = (curStep && curStep.checkSpeed && o.speedWarn) ? '⚠ 转太快,慢一点' : '';
+        if (curStep && curStep.pitch != null) {
+          if (curStep.pitch > 0 && o.beta >= 90 + curStep.pitch * 0.6) st.cover.ceil = true;   // 抬头(beta 增大)
+          if (curStep.pitch < 0 && o.beta <= 90 + curStep.pitch * 0.6) st.cover.floor = true;  // 低头(beta 减小)
+        }
+      }
+      scanRecRefreshHud();
+    }
+
+    async function enterScanRec() {
+      if (scanRecState.active) return;
+      if (arLiteState.active || arState.active || vrState.active) { alert('请先退出 AR/VR'); return; }
+      try {
+        // 1. 起后摄 stream(复用 AR-lite 已验证参数)
+        scanRecState.stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } },
+          audio: false,
+        });
+        const video = document.getElementById('scan-rec-video');
+        video.srcObject = scanRecState.stream;
+        video.classList.add('active');
+        try { await video.play(); } catch (_) {}  // 兜底 autoplay(muted 一般可直接播)
+        // 2. 起 MediaRecorder(webm vp8,ffmpeg 抽帧不挑容器)
+        scanRecState.chunks = [];
+        const mime = MediaRecorder.isTypeSupported('video/webm;codecs=vp8') ? 'video/webm;codecs=vp8' : 'video/webm';
+        scanRecState.recorder = new MediaRecorder(scanRecState.stream, { mimeType: mime });
+        scanRecState.recorder.ondataavailable = (ev) => { if (ev.data && ev.data.size) scanRecState.chunks.push(ev.data); };
+        scanRecState.recorder.start();
+        // 2.5 陀螺仪辅助(Android WebView 不需 requestPermission;3s 内无事件则判不可用,降级纯脚本)
+        scanRecState.orient.available = false;
+        scanRecState.orient.lastAlpha = null;
+        scanRecState.orient.speedWarn = false;
+        scanRecOrientHandler = (ev) => {
+          const o = scanRecState.orient;
+          o.available = true;
+          o.beta = (ev.beta == null) ? o.beta : ev.beta;  // 俯仰 -180~180,竖握约 90
+          // alpha 差分估角速度(deg/s)
+          const now = performance.now();
+          if (o.lastAlpha != null && ev.alpha != null) {
+            let d = Math.abs(ev.alpha - o.lastAlpha); if (d > 180) d = 360 - d;
+            const dt = (now - o.lastT) / 1000;
+            if (dt > 0) o.speedWarn = (d / dt) > 90;  // >90°/s 算太快
+          }
+          o.lastAlpha = ev.alpha; o.lastT = now;
+          // v2 · 方位覆盖:当前段需覆盖时记录 alpha 扇区;up/down 段要俯仰达标才计入
+          // (保证「仰着转过去」才算扫到天花板那格,平视扫过不算)
+          if (ev.alpha != null && scanRecState.active) {
+            const cs = ROOM_GUIDE_STEPS[scanRecState.stepIdx];
+            if (cs && cs.azimuthGoal) {
+              const pitchOk = cs.pitch == null ||
+                (cs.pitch > 0 ? o.beta >= 90 + cs.pitch * 0.6 : o.beta <= 90 + cs.pitch * 0.6);
+              if (pitchOk) scanRecState.azimuth.add(Math.floor((((ev.alpha % 360) + 360) % 360) / 10) % 36);
+            }
+          }
+        };
+        window.addEventListener('deviceorientation', scanRecOrientHandler);
+        setTimeout(() => {
+          if (!scanRecState.orient.available) {
+            document.getElementById('scan-rec-warn').style.display = 'none';
+            document.getElementById('scan-rec-cover').style.display = 'none';
+            console.log('[scan-rec] DeviceOrientation 不可用,降级纯脚本');
+          }
+        }, 3000);
+        // 3. 进沉浸全屏(复用现有)
+        const wrap = document.getElementById('pc-canvas-wrap');
+        scanRecState.wasFullscreen = wrap.classList.contains('fullscreen');
+        if (!scanRecState.wasFullscreen && typeof toggleFullscreen === 'function') toggleFullscreen(true);
+        // 3.5 video/hud/stop 移到 body 末尾(对齐 AR-lite 已验证做法):
+        //     toggleFullscreen 会把公寓 canvas appendChild 到 body 末尾,
+        //     这里再把相机层 append 到其后,确保盖在公寓画面之上(否则只见公寓不见相机)
+        const recHud = document.getElementById('scan-rec-hud');
+        const recStop = document.getElementById('scan-rec-stop');
+        if (video.parentNode !== document.body) document.body.appendChild(video);
+        if (recHud.parentNode !== document.body) document.body.appendChild(recHud);
+        if (recStop.parentNode !== document.body) document.body.appendChild(recStop);
+        recHud.classList.add('active');
+        recStop.style.display = 'block';
+        scanRecState.active = true;
+        // 4. 引导计时启动
+        scanRecState.stepIdx = 0; scanRecState.stepElapsed = 0; scanRecState.totalElapsed = 0;
+        scanRecState.totalSec = ROOM_GUIDE_STEPS.reduce((a, s) => a + s.sec, 0);
+        scanRecState.cover = { ceil: false, floor: false };
+        scanRecState.azimuth = new Set();
+        scanRecRefreshHud();
+        scanRecState.timer = setInterval(scanRecTick, 200);
+        scanRecAnnounce(ROOM_GUIDE_STEPS[0]);  // v2 · 第一段也语音+震动播报
+      } catch (e) {
+        console.error('[scan-rec] enter failed', e);
+        const msg = (e && e.name === 'NotAllowedError') ? '相机权限被拒' : ((e && e.message) || String(e));
+        alert('自扫录制启动失败: ' + msg);
+        exitScanRec();
+      }
+    }
+
+    // 停录 → 存相册 → 提示传 Mac(停止按钮/引导走完都走这里)
+    async function scanRecFinish() {
+      const st = scanRecState;
+      if (st.timer) { clearInterval(st.timer); st.timer = null; }
+      if (st.recorder && st.recorder.state !== 'inactive') {
+        await new Promise((res) => { st.recorder.onstop = res; st.recorder.stop(); });
+      }
+      try {
+        const blob = new Blob(st.chunks, { type: 'video/webm' });
+        const buf = await blob.arrayBuffer();
+        const b64 = arrayBufferToBase64(buf);
+        const ts = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14); // yyyyMMddHHmmss
+        const filename = 'roam-scan-' + ts + '.webm';
+        const path = (window.RoamBridge && RoamBridge.saveVideoBase64) ? RoamBridge.saveVideoBase64(filename, b64) : '';
+        const sizeMB = (buf.byteLength / 1048576).toFixed(1);
+        if (window.RoamBridge && RoamBridge.toast) {
+          RoamBridge.toast('已存 ' + filename + ' (' + sizeMB + 'MB) · 传 Mac 跑 scan-train.sh <文件> scene');
+        }
+        if (window.RoamBridge && typeof RoamBridge.speak === 'function') RoamBridge.speak('录制完成,已保存到相册');
+        console.log('[scan-rec] saved', path);
+      } catch (e) {
+        console.error('[scan-rec] save failed', e);
+        if (window.RoamBridge && RoamBridge.toast) RoamBridge.toast('保存失败: ' + ((e && e.message) || e));
+      }
+      exitScanRec();
+    }
+
+    // 退出 = 取消(返回键走这里,丢弃不保存);scanRecFinish 收尾也调它清理
+    function exitScanRec() {
+      if (scanRecState.timer) { clearInterval(scanRecState.timer); scanRecState.timer = null; }
+      if (scanRecState.stream) { scanRecState.stream.getTracks().forEach((t) => t.stop()); scanRecState.stream = null; }
+      scanRecState.recorder = null; scanRecState.chunks = [];
+      if (scanRecOrientHandler) { window.removeEventListener('deviceorientation', scanRecOrientHandler); scanRecOrientHandler = null; }
+      document.getElementById('scan-rec-warn').style.display = '';   // 恢复(降级时曾隐藏)
+      document.getElementById('scan-rec-cover').style.display = '';
+      const video = document.getElementById('scan-rec-video');
+      video.srcObject = null; video.classList.remove('active');
+      document.getElementById('scan-rec-hud').classList.remove('active');
+      document.getElementById('scan-rec-stop').style.display = 'none';
+      if (scanRecState.wasFullscreen === false && typeof toggleFullscreen === 'function') toggleFullscreen(false);
+      scanRecState.active = false;
+    }
+
+    window.enterScanRec = enterScanRec;
+    window.exitScanRec = exitScanRec;
+    window.scanRecFinish = scanRecFinish;
+    document.getElementById('scan-rec-stop').addEventListener('click', () => { scanRecFinish(); });
+
+    // ============================================================
     // ADR-012 · VR-imm 模式(WebXR immersive-vr session)
     // Magic7 实测 2026-05-31:requestSession('immersive-vr') ✅ 可启动(不卡白名单)
     // 进 session 后 PlayCanvas 接管 stereo + 陀螺仪追踪
@@ -1706,7 +1979,7 @@
         if (sceneStarters[cmd]) { sceneStarters[cmd](); return; }
         // 其他 UI 按钮 cmd → button id 映射
         const map = { record: 'rec-start-btn', stop: 'rec-stop-btn', list: 'rec-list-btn',
-                      pick: 'spz-pick-btn', snap: 'snap-btn', scan: 'scan-btn', gif: 'gif-btn', walk: 'pc-walk-btn', flip: 'pc-flip-btn',
+                      pick: 'spz-pick-btn', snap: 'snap-btn', scan: 'scan-btn', gif: 'gif-btn', walk: 'pc-walk-btn', flip: 'pc-flip-btn', 'scan-rec': 'scan-rec-btn',
                       'kf-add': 'kf-add-btn', 'kf-play': 'kf-play-btn', 'kf-rec': 'kf-rec-btn', 'kf-clear': 'kf-clear-btn',
                       'qr-apt': 'qr-apt', 'qr-guitar': 'qr-guitar', 'qr-cube': 'qr-cube' };
         const btn = document.getElementById(map[cmd]);
@@ -3663,6 +3936,8 @@
     // Android Back 键:沉浸模式时先退沉浸,再 back 才退 App
     // 返回 true = 已处理(MainActivity 不再 dispatchBack),false = 走默认
     window.onAndroidBack = function () {
+      // ADR-014 · 自扫录制最优先退出(返回键 = 取消,丢弃不保存)
+      if (scanRecState.active) { exitScanRec(); return true; }
       // ADR-012 · 优先退 AR-lite / VR / 真 AR(任一在 active)
       if (arLiteState.active) { exitARLite(); return true; }
       if (vrState.active) { exitVR(); return true; }

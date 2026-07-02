@@ -326,6 +326,46 @@ class RoamBridge(
         }
     }
 
+    // ===== ADR-014 v2 · 自扫录制引导反馈(语音 + 震动)=====
+    // 举着手机拍摄时看不清屏幕小字,语音播报是主指引;TTS 引擎缺失则静默(前端有大字+震动兜底)
+    private var tts: android.speech.tts.TextToSpeech? = null
+    private var ttsReady = false
+
+    /** 语音播报引导指令(懒加载 TTS;QUEUE_FLUSH 新指令打断旧的) */
+    @JavascriptInterface
+    fun speak(text: String) {
+        activity.runOnUiThread {
+            try {
+                if (tts == null) {
+                    tts = android.speech.tts.TextToSpeech(activity) { status ->
+                        ttsReady = status == android.speech.tts.TextToSpeech.SUCCESS
+                        if (ttsReady) {
+                            tts?.language = java.util.Locale.CHINESE
+                            tts?.speak(text, android.speech.tts.TextToSpeech.QUEUE_FLUSH, null, "roam-scan")
+                        } else Log.w(TAG, "TTS 初始化失败,语音引导降级为纯视觉")
+                    }
+                } else if (ttsReady) {
+                    tts?.speak(text, android.speech.tts.TextToSpeech.QUEUE_FLUSH, null, "roam-scan")
+                }
+            } catch (e: Exception) { Log.w(TAG, "speak 失败", e) }
+        }
+    }
+
+    /** 换段震动提醒(拍摄时余光/手感知道该换动作了) */
+    @JavascriptInterface
+    fun vibrate(ms: Int) {
+        try {
+            val v = if (Build.VERSION.SDK_INT >= 31) {
+                (activity.getSystemService(android.content.Context.VIBRATOR_MANAGER_SERVICE)
+                    as android.os.VibratorManager).defaultVibrator
+            } else {
+                @Suppress("DEPRECATION")
+                activity.getSystemService(android.content.Context.VIBRATOR_SERVICE) as android.os.Vibrator
+            }
+            v.vibrate(android.os.VibrationEffect.createOneShot(ms.toLong(), android.os.VibrationEffect.DEFAULT_AMPLITUDE))
+        } catch (e: Exception) { Log.w(TAG, "vibrate 失败", e) }
+    }
+
     @JavascriptInterface
     fun log(tag: String, message: String) {
         Log.d("Roam/$tag", message)

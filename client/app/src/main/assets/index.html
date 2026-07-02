@@ -1979,7 +1979,7 @@
         if (sceneStarters[cmd]) { sceneStarters[cmd](); return; }
         // 其他 UI 按钮 cmd → button id 映射
         const map = { record: 'rec-start-btn', stop: 'rec-stop-btn', list: 'rec-list-btn',
-                      pick: 'spz-pick-btn', snap: 'snap-btn', scan: 'scan-btn', gif: 'gif-btn', walk: 'pc-walk-btn', flip: 'pc-flip-btn', 'scan-rec': 'scan-rec-btn',
+                      pick: 'spz-pick-btn', snap: 'snap-btn', scan: 'scan-btn', gif: 'gif-btn', walk: 'pc-walk-btn', flip: 'pc-flip-btn', mode: 'pc-mode-btn', 'scan-rec': 'scan-rec-btn',
                       'kf-add': 'kf-add-btn', 'kf-play': 'kf-play-btn', 'kf-rec': 'kf-rec-btn', 'kf-clear': 'kf-clear-btn',
                       'qr-apt': 'qr-apt', 'qr-guitar': 'qr-guitar', 'qr-cube': 'qr-cube' };
         const btn = document.getElementById(map[cmd]);
@@ -2493,6 +2493,15 @@
       const newMode = currentCam.mode === 'indoor' ? 'orbit' : 'indoor';
       currentCam.mode = newMode;
       currentCam.pitch = newMode === 'indoor' ? 0 : -0.2;
+      // M10 · 切到室内时落点用密度中位中心(orbit 的 center 是 AABB 中心,
+      // 被 floater 拽偏时人会站在房间外 —— 自扫房间场景 zhi 实测「感觉在外围」)
+      if (newMode === 'indoor') {
+        const mc = splatMedianCenter();
+        if (mc) {
+          currentCam.center.copy(mc);
+          if (currentCam.initialCenter) currentCam.initialCenter.copy(mc);  // 双击复位也回房间内
+        }
+      }
       currentCam.AUTO_SPEED = newMode === 'indoor' ? 0.10 : 0.25;
       const mbtn = document.getElementById('pc-mode-btn');
       if (mbtn) mbtn.textContent = newMode === 'indoor' ? '🏠 室内(切环绕)' : '🌍 环绕(切室内)';

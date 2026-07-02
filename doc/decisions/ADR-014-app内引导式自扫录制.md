@@ -1,7 +1,7 @@
 # ADR-014 · App 内引导式自扫录制 — 把「采集质量门槛」从看运气变成照着拍
 
-> 状态:🟡 Proposed(设计已与 zhi brainstorm 敲定,待实施)
-> 日期:2026-06-13
+> 状态:🟢 已实施(v1 真机验证通过;v2 引导强化已 ship 待真机复验)
+> 日期:2026-06-13(v0.2 修订 2026-07-02)
 > 关联:[ADR-010 自扫数据源-Magic7拍-Mac训](ADR-010-自扫场景数据源-Magic7拍-Mac-Brush训.md)、[ADR-012 无ARCore降级](ADR-012-无ARCore设备的AR降级方案-AR-lite-VR.md)、`scripts/scan-train.sh`(commit 8b1312c exhaustive matching)
 
 ---
@@ -117,3 +117,4 @@ ADR-010 的「何时回头看」里也写了:「**Roam 出 App 内扫描功能 �
 | 版本 | 日期 | 修订内容 |
 |---|---|---|
 | v0.1 | 2026-06-13 | 初版,与 zhi brainstorm 敲定:纯采集引导 / 脚本分段+陀螺仪辅助 / 存相册+提示 / 只房间 preset。配套 commit 8b1312c exhaustive matching 的闭环诉求 |
+| v0.2 | 2026-07-02 | **v1 实施完成并真机验证**(zhi 实拍录制成功,commit b971f12)。实施中踩坑:toggleFullscreen 把场景 canvas 移到 body 末尾盖住相机层,video/hud 需同样 appendChild 到 body(AR-lite 同款坑)。**v2 引导强化**(zhi 实拍反馈「指引不明显、不知道拍没拍全、拍摄难度大」):① 语音播报每段指令(RoamBridge.speak/TTS)+ 换段震动 —— 举着拍看不清屏幕字,语音才是主指引;② 方位覆盖环 —— alpha 切 36 个 10° 扇区转到哪亮到哪,把「拍没拍全」可视化(零依赖伪 SLAM 覆盖感知);③ 分段推进从「掐秒数」改「完成度驱动」—— 覆盖达标才换段,maxSec 兜底,手慢不再等于拍废。陀螺仪不可用整链自动回退纯时间驱动。待真机复验:TTS 中文引擎可用性 / 覆盖环方向感 / up/down 段俯仰阈值 |

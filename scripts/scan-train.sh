@@ -5,15 +5,21 @@
 #      → 去桌面提取主体(可选) → splat-transform 压缩 → 可上线 .ply
 #
 # 用法:
-#   ./scripts/scan-train.sh <视频.mp4|已训练.ply> [工作目录] [训练步数] [模式]
+#   ./scripts/scan-train.sh <视频.mp4|已训练.ply> [工作目录] [训练步数] [模式] [--append]
 # 模式(第 4 参,默认 object):
 #   object  物体放桌面/地面拍的 → extract-object.py 去桌面提取主体后压缩(产物最干净)
 #   scene   场景类(保留环境)→ 只做尺度/透明度过滤 + GPU 体素 floater 过滤后压缩
 #   raw     只训练不后处理(想自己手动调清理参数时用)
+# --append(ADR-015 补拍增量):复用已有工作目录,新视频抽帧续号并入,
+#   COLMAP 只对新帧提特征/匹配 + 增量注册进已有 sparse/0(老帧 SfM 不重算),
+#   然后降步数全局重训(不给第 3 参时默认 15000)。训练那步省不掉——
+#   Brush 无真 warm-start(ADR-015 调研),补拍≠秒级补丁,预期要对。
+#   补拍素材务必带到老场景里认得出的参照物,重叠不足会注册失败。
 # 例:
 #   ./scripts/scan-train.sh ~/Downloads/scan.mp4                       # 全管线,object 模式
 #   ./scripts/scan-train.sh ~/Downloads/room.mp4 /tmp/room 30000 scene # 场景模式
 #   ./scripts/scan-train.sh /tmp/roam-scan-x/export/sample_30000.ply   # 只跑后处理(调参复跑)
+#   ./scripts/scan-train.sh patch.mp4 /tmp/room 15000 scene --append   # 补拍并入 /tmp/room 重训
 #
 # 产物:<工作目录>/export/sample.compressed.ply(raw 模式则为 sample_<steps>.ply)
 # 上线:cp 到 docs/scenes/sample.compressed.ply && git commit && push(目标 ≤30MB)
@@ -29,9 +35,18 @@
 # =============================================================
 set -euo pipefail
 
-INPUT="${1:?用法: scan-train.sh <视频|已训练.ply> [工作目录] [训练步数] [object|scene|raw]}"
+# --append 可放任意位置,先从参数里摘出来再做位置解析
+APPEND=0
+ARGS=()
+for a in "$@"; do
+  if [ "$a" = "--append" ]; then APPEND=1; else ARGS+=("$a"); fi
+done
+[ ${#ARGS[@]} -ge 1 ] && set -- "${ARGS[@]}"
+
+INPUT="${1:?用法: scan-train.sh <视频|已训练.ply> [工作目录] [训练步数] [object|scene|raw] [--append]}"
 WORK="${2:-/tmp/roam-scan-$(date +%m%d-%H%M)}"
-STEPS="${3:-30000}"
+# 补拍默认降步数:已有好的 SfM 点云打底,15000 步够收敛(ADR-015)
+if [ "$APPEND" = 1 ]; then STEPS="${3:-15000}"; else STEPS="${3:-30000}"; fi
 MODE="${4:-object}"
 BRUSH="$HOME/Documents/dev/tools/brush/brush-app-aarch64-apple-darwin/brush_app"
 PYENV="$HOME/Documents/dev/tools/pycolmap-env"
@@ -40,6 +55,15 @@ FPS=3   # 抽帧率:15-30s 视频 → 45-90 帧,COLMAP 够用且不爆训练时�
 
 case "$MODE" in object|scene|raw) ;; *) echo "✗ 模式只能是 object|scene|raw,收到: $MODE"; exit 1 ;; esac
 [ -f "$INPUT" ] || { echo "✗ 输入不存在: $INPUT"; exit 1; }
+
+# --append 前置检查:必须指向一个已跑过全管线的工作目录
+if [ "$APPEND" = 1 ]; then
+  [ -n "${2:-}" ] || { echo "✗ --append 必须显式给工作目录(第 2 参),要并入哪次的成果?"; exit 1; }
+  [[ "$INPUT" != *.ply ]] || { echo "✗ --append 的输入应是补拍视频,不是 .ply"; exit 1; }
+  for need in "$WORK/colmap.db" "$WORK/sparse/0" "$WORK/images"; do
+    [ -e "$need" ] || { echo "✗ --append 需要已有 $need(先不带 --append 跑一次全管线)"; exit 1; }
+  done
+fi
 
 # pycolmap venv 不在就自动建(matching/mapping + extract-object 依赖)
 if [ ! -x "$PYENV/bin/python" ]; then
@@ -58,23 +82,70 @@ else
   command -v ffmpeg >/dev/null || { echo "✗ 缺 ffmpeg(brew install ffmpeg)"; exit 1; }
   command -v colmap >/dev/null || { echo "✗ 缺 colmap(brew install colmap,只用它提特征)"; exit 1; }
 
-  echo "▶ 工作目录: $WORK(模式: $MODE)"
-  mkdir -p "$WORK/images" "$WORK/export"
+  if [ "$APPEND" = 1 ]; then
+    # —— 补拍增量(ADR-015):新帧续号并入,COLMAP 增量注册,老帧 SfM 不重算
+    echo "▶ 工作目录: $WORK(补拍增量,模式: $MODE)"
+    OLD_N=$(ls "$WORK/images" | wc -l | tr -d ' ')
+    echo "▶ [1/5] ffmpeg 抽帧(${FPS}fps,续号追加,已有 $OLD_N 帧)…"
+    ffmpeg -hide_banner -loglevel warning -y -i "$INPUT" -vf "fps=$FPS" -q:v 2 \
+      -start_number $((OLD_N + 1)) "$WORK/images/frame_%04d.jpg"
+    N=$(ls "$WORK/images" | wc -l | tr -d ' ')
+    echo "  新增 $((N - OLD_N)) 帧(合计 $N)"
+    [ $((N - OLD_N)) -ge 5 ] || { echo "✗ 新帧太少(<5),补拍视频太短或抽帧失败"; exit 1; }
+  else
+    echo "▶ 工作目录: $WORK(模式: $MODE)"
+    mkdir -p "$WORK/images" "$WORK/export"
 
-  echo "▶ [1/5] ffmpeg 抽帧(${FPS}fps)…"
-  ffmpeg -hide_banner -loglevel warning -y -i "$INPUT" -vf "fps=$FPS" -q:v 2 "$WORK/images/frame_%04d.jpg"
-  N=$(ls "$WORK/images" | wc -l | tr -d ' ')
-  echo "  抽出 $N 帧"
-  [ "$N" -ge 20 ] || { echo "✗ 帧数太少(<20),视频太短或抽帧失败"; exit 1; }
+    echo "▶ [1/5] ffmpeg 抽帧(${FPS}fps)…"
+    ffmpeg -hide_banner -loglevel warning -y -i "$INPUT" -vf "fps=$FPS" -q:v 2 "$WORK/images/frame_%04d.jpg"
+    N=$(ls "$WORK/images" | wc -l | tr -d ' ')
+    echo "  抽出 $N 帧"
+    [ "$N" -ge 20 ] || { echo "✗ 帧数太少(<20),视频太短或抽帧失败"; exit 1; }
+  fi
 
   echo "▶ [2/5] COLMAP 特征提取(brew colmap)+ 匹配/重建(pycolmap)…"
+  # feature_extractor 复用已有 colmap.db 时自动跳过库里已有的帧 → append 只提新帧
   colmap feature_extractor \
     --database_path "$WORK/colmap.db" \
     --image_path "$WORK/images" \
     --ImageReader.single_camera 1 \
     --ImageReader.camera_model SIMPLE_RADIAL \
     --FeatureExtraction.use_gpu 0
-  "$PYENV/bin/python" - "$WORK" <<'PYEOF'
+  if [ "$APPEND" = 1 ]; then
+    "$PYENV/bin/python" - "$WORK" <<'PYEOF'
+import sys, pathlib, shutil
+import pycolmap
+work = pathlib.Path(sys.argv[1])
+db, images, sparse0 = work / 'colmap.db', work / 'images', work / 'sparse' / '0'
+old_n = pycolmap.Reconstruction(sparse0).num_reg_images()
+print(f'  已有模型: {old_n} 帧注册', flush=True)
+# exhaustive 匹配自动跳过库里已匹配的对 → 只算「新帧 × 全库」,O(新×全)不是 O(n²)
+print('  pycolmap exhaustive matching(跳过已匹配对)…', flush=True)
+pycolmap.match_exhaustive(db)
+# input_path 续建 = image_registrator + 三角化 + BA:新帧注册进老坐标系,
+# 老帧位姿只做 BA 微调不重算(ADR-015「COLMAP 不全量重算」的落点)
+print('  pycolmap 增量注册新帧(input_path 续建)…', flush=True)
+out = work / 'sparse-append'
+if out.exists():
+    shutil.rmtree(out)
+out.mkdir()
+maps = pycolmap.incremental_mapping(db, images, out, input_path=sparse0)
+rec = max(maps.values(), key=lambda r: r.num_reg_images()) if maps else None
+new_n = rec.num_reg_images() if rec else 0
+if new_n <= old_n:
+    shutil.rmtree(out)
+    sys.exit('✗ 没有新帧注册进模型 — 补拍素材与老场景重叠不足。重拍时务必带到老场景里认得出的参照物;或不加 --append 全量重跑')
+print(f'  注册后: {new_n} 帧(新增 {new_n - old_n})', flush=True)
+# 合并模型写回 sparse/0(Brush 按标准布局读)。老模型备份成单个 tar——
+# 不能留成目录:工作目录里出现第二份 cameras.bin,Brush 扫数据集可能错拿备份
+shutil.make_archive(str(work / 'sparse' / '0-pre-append'), 'tar', root_dir=str(sparse0))
+shutil.rmtree(sparse0)
+sparse0.mkdir()
+rec.write(sparse0)
+shutil.rmtree(out)
+PYEOF
+  else
+    "$PYENV/bin/python" - "$WORK" <<'PYEOF'
 import sys, pathlib
 import pycolmap
 work = pathlib.Path(sys.argv[1])
@@ -94,6 +165,7 @@ if not maps:
 for idx, rec in maps.items():
     print(f'  model {idx}: {rec.num_reg_images()} 帧注册成功', flush=True)
 PYEOF
+  fi
   [ -d "$WORK/sparse/0" ] || { echo "✗ 没有 sparse/0 重建输出"; exit 1; }
 
   echo "▶ [3/5] Brush 训练 ${STEPS} steps…(Apple Silicon GPU,约 10-60 分钟,CLI 无进度输出属正常)"

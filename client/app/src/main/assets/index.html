@@ -443,6 +443,7 @@
       </div>
       <!-- ADR-014 · 引导式自扫录制入口(自扫是场景来源的一部分)-->
       <button id="scan-rec-btn" onclick="enterScanRec()" style="width:100%;margin-top:6px;background:rgba(34,197,94,0.20);box-shadow:none;border:1px solid rgba(34,197,94,0.40);color:#86EFAC;font-size:13px;">📷 引导式自扫录制</button>
+      <button id="scan-patch-btn" onclick="enterScanRec('patch')" style="width:100%;margin-top:6px;background:rgba(255,159,10,0.18);box-shadow:none;border:1px solid rgba(255,159,10,0.40);color:#FFD08A;font-size:13px;">🩹 补拍录制(并入已有场景)</button>
       <div class="meta" style="margin-top:6px;font-size:11px;color:rgba(255,255,255,0.5);">拉 <code>zhaozhi189.github.io/roam/scenes/sample.compressed.ply</code> 入库(ADR-010 自扫数据源,占位)</div>
       <div id="mng-list" style="margin-top:10px;font-size:11px;font-family:ui-monospace,monospace;color:rgba(255,255,255,0.7);"></div>
     </div>
@@ -1388,8 +1389,20 @@
       { id: 'loop',  label: '④ 转回最开始那面墙 · 停 2 秒',       voice: '最后一步,转回最开始拍的那面墙,对准它,停两秒', auto: true,
         sec: 4,  noGyroSec: 4,  pitch: null, checkSpeed: false, cover: null,    azimuthGoal: 0 },
     ];
+    // 补拍引导脚本(ADR-015 联动):对着训完发糊的区域拍增量素材,存出的文件走
+    // scan-train.sh <文件> <老工作目录> 15000 scene --append 并入重训。
+    // 核心要求是「带参照物」—— 新帧要和老场景有重叠,COLMAP 才能把它拼进老坐标系。
+    const PATCH_GUIDE_STEPS = [
+      { id: 'ready', label: '对准要补拍的糊区 · 先退后一步',       voice: '准备补拍。对准不清楚的那块区域,先退后一步,让它和旁边认得出的家具或墙面一起入画', auto: true,
+        sec: 5,  noGyroSec: 5,  pitch: null, checkSpeed: false, cover: null, azimuthGoal: 0 },
+      { id: 'patch', label: '凑近糊区 · 上下左右多角度慢慢拍',     voice: '开始。慢慢凑近,上下左右多角度拍。时不时把旁边的参照物带进画面,拍够了点下一段', auto: false,
+        sec: 20, noGyroSec: 20, pitch: null, checkSpeed: true,  cover: null, azimuthGoal: 0 },
+      { id: 'wide',  label: '退后 · 糊区+参照物一起入画 · 停 3 秒', voice: '最后退后一步,把补拍区域和参照物一起框进来,停三秒', auto: true,
+        sec: 5,  noGyroSec: 5,  pitch: null, checkSpeed: false, cover: null, azimuthGoal: 0 },
+    ];
     const scanRecState = {
       active: false, stream: null,
+      preset: 'room', steps: ROOM_GUIDE_STEPS,  // 补拍模式换成 PATCH_GUIDE_STEPS(enterScanRec 参数)
       recorder: null, chunks: [],
       stepIdx: 0, stepElapsed: 0, totalElapsed: 0,
       timer: null, wasFullscreen: false,
@@ -1426,19 +1439,19 @@
       st.lastAzimuthSize = 0; st.lastProgressAt = 0;
       const btn = document.getElementById('scan-rec-next');
       btn.style.display = 'none'; btn.classList.remove('ready'); btn.textContent = '下一段 ▸';
-      const next = ROOM_GUIDE_STEPS[st.stepIdx];
+      const next = st.steps[st.stepIdx];
       if (next) scanRecAnnounce(next);
     }
 
     // v4 · 「下一段」点击:引导段唯一的推进入口(auto 段按钮不显示,点不到)
     function scanRecNext() {
-      const st = scanRecState, step = ROOM_GUIDE_STEPS[st.stepIdx];
+      const st = scanRecState, step = st.steps[st.stepIdx];
       if (!st.active || !step || step.auto) return;
       scanRecAdvanceStep();
     }
 
     function scanRecRefreshHud() {
-      const st = scanRecState, step = ROOM_GUIDE_STEPS[st.stepIdx];
+      const st = scanRecState, step = st.steps[st.stepIdx];
       document.getElementById('scan-rec-instr').textContent = step ? step.label : '完成 ✅';
       const ring = document.getElementById('scan-rec-ring');
       let pct;
@@ -1462,7 +1475,7 @@
     function scanRecTick() {
       const st = scanRecState;
       st.stepElapsed += 0.2; st.totalElapsed += 0.2;
-      const step = ROOM_GUIDE_STEPS[st.stepIdx];
+      const step = st.steps[st.stepIdx];
       // v4 · 推进规则(核心:推进权在拍摄者手里,自动模型只做提示):
       //  auto 段(ready/loop):按秒自动走,没东西可拍不用等人
       //  引导段(orbit/up/down):**永不自动推进**。达标(覆盖满/降级到参考时长)→
@@ -1498,7 +1511,7 @@
         if (window.RoamBridge && typeof RoamBridge.speak === 'function') RoamBridge.speak('录制快到五分钟上限了,即将自动保存。大房子可以分多次拍');
       }
       if (st.totalElapsed >= SCAN_REC_TOTAL_CAP_SEC) { scanRecRefreshHud(); scanRecFinish(); return; }
-      if (st.stepIdx >= ROOM_GUIDE_STEPS.length) {
+      if (st.stepIdx >= st.steps.length) {
         // 引导走完 → 自动停录保存
         scanRecRefreshHud();
         scanRecFinish();
@@ -1507,7 +1520,7 @@
       // 陀螺仪反馈:角速度警告 + 俯仰覆盖打勾(用当前段,避免刚切段时错位)
       const o = st.orient;
       if (o.available) {
-        const curStep = ROOM_GUIDE_STEPS[st.stepIdx];
+        const curStep = st.steps[st.stepIdx];
         const warnEl = document.getElementById('scan-rec-warn');
         warnEl.textContent = (curStep && curStep.checkSpeed && o.speedWarn) ? '⚠ 转太快,慢一点' : '';
         if (curStep && curStep.pitch != null) {
@@ -1518,9 +1531,11 @@
       scanRecRefreshHud();
     }
 
-    async function enterScanRec() {
+    async function enterScanRec(preset) {
       if (scanRecState.active) return;
       if (arLiteState.active || arState.active || vrState.active) { alert('请先退出 AR/VR'); return; }
+      scanRecState.preset = (preset === 'patch') ? 'patch' : 'room';
+      scanRecState.steps = (scanRecState.preset === 'patch') ? PATCH_GUIDE_STEPS : ROOM_GUIDE_STEPS;
       try {
         // 1. 起后摄 stream(复用 AR-lite 已验证参数)
         scanRecState.stream = await navigator.mediaDevices.getUserMedia({
@@ -1556,7 +1571,7 @@
           // v2 · 方位覆盖:当前段需覆盖时记录 alpha 扇区;up/down 段要俯仰达标才计入
           // (保证「仰着转过去」才算扫到天花板那格,平视扫过不算)
           if (ev.alpha != null && scanRecState.active) {
-            const cs = ROOM_GUIDE_STEPS[scanRecState.stepIdx];
+            const cs = scanRecState.steps[scanRecState.stepIdx];
             if (cs && cs.azimuthGoal) {
               const pitchOk = cs.pitch == null ||
                 (cs.pitch > 0 ? o.beta >= 90 + cs.pitch * 0.6 : o.beta <= 90 + cs.pitch * 0.6);
@@ -1589,6 +1604,8 @@
         recHud.classList.add('active');
         recStop.style.display = 'block';
         recNext.style.display = 'none'; recNext.classList.remove('ready'); recNext.textContent = '下一段 ▸';
+        // 补拍模式不判俯仰,天花板/地板勾选行没意义,藏掉(exit 恢复)
+        document.getElementById('scan-rec-cover').style.display = (scanRecState.preset === 'patch') ? 'none' : '';
         scanRecState.active = true;
         // 4. 引导计时启动
         scanRecState.stepIdx = 0; scanRecState.stepElapsed = 0; scanRecState.totalElapsed = 0;
@@ -1598,7 +1615,7 @@
         scanRecState.lastAzimuthSize = 0; scanRecState.lastProgressAt = 0;
         scanRecRefreshHud();
         scanRecState.timer = setInterval(scanRecTick, 200);
-        scanRecAnnounce(ROOM_GUIDE_STEPS[0]);  // v2 · 第一段也语音+震动播报
+        scanRecAnnounce(scanRecState.steps[0]);  // v2 · 第一段也语音+震动播报
       } catch (e) {
         console.error('[scan-rec] enter failed', e);
         const msg = (e && e.name === 'NotAllowedError') ? '相机权限被拒' : ((e && e.message) || String(e));
@@ -1619,11 +1636,13 @@
         const buf = await blob.arrayBuffer();
         const b64 = arrayBufferToBase64(buf);
         const ts = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14); // yyyyMMddHHmmss
-        const filename = 'roam-scan-' + ts + '.webm';
+        const filename = (st.preset === 'patch' ? 'roam-patch-' : 'roam-scan-') + ts + '.webm';
         const path = (window.RoamBridge && RoamBridge.saveVideoBase64) ? RoamBridge.saveVideoBase64(filename, b64) : '';
         const sizeMB = (buf.byteLength / 1048576).toFixed(1);
         if (window.RoamBridge && RoamBridge.toast) {
-          RoamBridge.toast('已存 ' + filename + ' (' + sizeMB + 'MB) · 传 Mac 跑 scan-train.sh <文件> scene');
+          RoamBridge.toast('已存 ' + filename + ' (' + sizeMB + 'MB) · ' + (st.preset === 'patch'
+            ? '传 Mac 跑 scan-train.sh <文件> <老工作目录> 15000 scene --append'
+            : '传 Mac 跑 scan-train.sh <文件> scene'));
         }
         if (window.RoamBridge && typeof RoamBridge.speak === 'function') RoamBridge.speak('录制完成,已保存到相册');
         console.log('[scan-rec] saved', path);
@@ -2042,7 +2061,7 @@
         if (sceneStarters[cmd]) { sceneStarters[cmd](); return; }
         // 其他 UI 按钮 cmd → button id 映射
         const map = { record: 'rec-start-btn', stop: 'rec-stop-btn', list: 'rec-list-btn',
-                      pick: 'spz-pick-btn', snap: 'snap-btn', scan: 'scan-btn', gif: 'gif-btn', walk: 'pc-walk-btn', flip: 'pc-flip-btn', mode: 'pc-mode-btn', 'scan-rec': 'scan-rec-btn',
+                      pick: 'spz-pick-btn', snap: 'snap-btn', scan: 'scan-btn', gif: 'gif-btn', walk: 'pc-walk-btn', flip: 'pc-flip-btn', mode: 'pc-mode-btn', 'scan-rec': 'scan-rec-btn', 'scan-patch': 'scan-patch-btn',
                       'kf-add': 'kf-add-btn', 'kf-play': 'kf-play-btn', 'kf-rec': 'kf-rec-btn', 'kf-clear': 'kf-clear-btn',
                       'qr-apt': 'qr-apt', 'qr-guitar': 'qr-guitar', 'qr-cube': 'qr-cube' };
         const btn = document.getElementById(map[cmd]);

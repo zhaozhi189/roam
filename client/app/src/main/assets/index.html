@@ -1358,31 +1358,36 @@
     // Task 1-4:HUD/预览/状态机/录制保存;Task 5:陀螺仪辅助(俯仰覆盖打勾 + 角速度警告),拿不到则自动降级纯脚本
     // ============================================================
     let scanRecOrientHandler = null;  // deviceorientation 监听器引用(进场注册/退场移除)
-    // 房间引导脚本 v2(每段:文案/语音/最短秒/最长秒/目标俯仰角deg(null=不判)/是否判角速度/覆盖标记/方位覆盖目标扇区数)
-    // v2 核心:orbit/up/down 段由「方位覆盖完成度」驱动推进(转够了才走,最长 maxSec 兜底),
-    //         不再掐死秒数 —— 回应 zhi 实拍反馈「20 秒转一圈太赶、不知道拍没拍全」。
-    //         陀螺仪不可用时 azimuthGoal 不生效,自动回退纯时间驱动(sec)。
+    // 房间引导脚本 v3(每段:文案/语音/最短秒(兼降级基准)/降级秒/目标俯仰角deg(null=不判)/是否判角速度/覆盖标记/方位覆盖目标扇区数)
+    // v3 核心:覆盖段没有「最长秒数」硬切 —— 回应 zhi 实拍反馈「时间太短,还没拍完就结束」。
+    //         只要覆盖环还在点亮新扇区(= 人还在转)就不换段;覆盖达标才走,
+    //         停滞 SCAN_REC_STALL_SEC 秒没新扇区(卡住/俯仰一直不达标)才兜底推进,
+    //         SCAN_REC_STEP_CAP_SEC 是防挂死的绝对上限。
+    //         陀螺仪不可用时 azimuthGoal 不生效,回退纯时间驱动(noGyroSec,比 v2 大幅拉长)。
     // 方位覆盖:0~360° 切 36 个 10° 扇区,deviceorientation.alpha 落在哪格点亮哪格。
+    const SCAN_REC_STALL_SEC = 12;     // 覆盖段停滞兜底:过最短时长后,连续这么多秒没点亮新扇区才换段
+    const SCAN_REC_STEP_CAP_SEC = 120; // 覆盖段绝对上限(防陀螺仪抽风导致永不推进)
     const ROOM_GUIDE_STEPS = [
       { id: 'ready', label: '竖握手机 · 站房间一角 · 离墙 1.5m+', voice: '准备,竖握手机,站在房间一角,离墙一米五以上',
-        sec: 4,  maxSec: 4,  pitch: null, checkSpeed: false, cover: null,    azimuthGoal: 0 },
-      { id: 'orbit', label: '① 缓慢转一圈 · 环亮满为止',          voice: '开始,缓慢原地转一圈,或沿墙走一圈。转到哪,环上哪格就亮,亮满一圈就好',
-        sec: 15, maxSec: 45, pitch: null, checkSpeed: true,  cover: null,    azimuthGoal: 32 },
+        sec: 4,  noGyroSec: 4,  pitch: null, checkSpeed: false, cover: null,    azimuthGoal: 0 },
+      { id: 'orbit', label: '① 缓慢转一圈 · 环亮满为止',          voice: '开始,缓慢原地转一圈,或沿墙走一圈。转到哪,环上哪格就亮,亮满一圈就好,不着急',
+        sec: 15, noGyroSec: 40, pitch: null, checkSpeed: true,  cover: null,    azimuthGoal: 32 },
       { id: 'up',    label: '② 抬头 30° · 仰着再转一圈',          voice: '很好。现在抬头三十度,保持仰角,再慢慢转一圈,扫天花板',
-        sec: 8,  maxSec: 30, pitch: 25,   checkSpeed: true,  cover: 'ceil',  azimuthGoal: 24 },
+        sec: 8,  noGyroSec: 25, pitch: 25,   checkSpeed: true,  cover: 'ceil',  azimuthGoal: 24 },
       { id: 'down',  label: '③ 低头 30° · 扫地面 + 家具底',       voice: '低头三十度,扫地面和家具底部,也转一圈',
-        sec: 8,  maxSec: 30, pitch: -25,  checkSpeed: true,  cover: 'floor', azimuthGoal: 24 },
+        sec: 8,  noGyroSec: 25, pitch: -25,  checkSpeed: true,  cover: 'floor', azimuthGoal: 24 },
       { id: 'loop',  label: '④ 转回最开始那面墙 · 停 2 秒',       voice: '最后一步,转回最开始拍的那面墙,对准它,停两秒',
-        sec: 4,  maxSec: 4,  pitch: null, checkSpeed: false, cover: null,    azimuthGoal: 0 },
+        sec: 4,  noGyroSec: 4,  pitch: null, checkSpeed: false, cover: null,    azimuthGoal: 0 },
     ];
     const scanRecState = {
       active: false, stream: null,
       recorder: null, chunks: [],
-      stepIdx: 0, stepElapsed: 0, totalElapsed: 0, totalSec: 0,
+      stepIdx: 0, stepElapsed: 0, totalElapsed: 0,
       timer: null, wasFullscreen: false,
       orient: { available: false, beta: 0, lastAlpha: null, lastT: 0, speedWarn: false },
       cover: { ceil: false, floor: false },
       azimuth: new Set(),  // v2 · 当前段已覆盖的方位扇区(0~35,每段重置)
+      lastAzimuthSize: 0, lastProgressAt: 0,  // v3 · 停滞检测:上次点亮新扇区时的扇区数/段内时刻
     };
 
     function fmtMMSS(s) { const m = Math.floor(s / 60), x = Math.floor(s % 60); return String(m).padStart(2,'0')+':'+String(x).padStart(2,'0'); }
@@ -1407,6 +1412,7 @@
     function scanRecAdvanceStep() {
       const st = scanRecState;
       st.stepIdx++; st.stepElapsed = 0; st.azimuth = new Set();
+      st.lastAzimuthSize = 0; st.lastProgressAt = 0;
       const next = ROOM_GUIDE_STEPS[st.stepIdx];
       if (next) scanRecAnnounce(next);
     }
@@ -1421,8 +1427,9 @@
         pct = Math.min(100, Math.round(st.azimuth.size / step.azimuthGoal * 100));
         ring.style.background = scanRecAzimuthGradient(st.azimuth);
       } else {
-        // 时间驱动段(或陀螺仪降级):环 = 总时间进度(标称)
-        pct = st.totalSec ? Math.min(100, Math.round(st.totalElapsed / st.totalSec * 100)) : 0;
+        // 时间驱动段(或陀螺仪降级):环 = 总时间进度(标称;降级按 noGyroSec 口径)
+        const nominal = ROOM_GUIDE_STEPS.reduce((a, s) => a + (st.orient.available ? s.sec : (s.noGyroSec || s.sec)), 0);
+        pct = Math.min(100, Math.round(st.totalElapsed / nominal * 100));
         ring.style.background = '';  // 还原 CSS 的 --pct conic-gradient
         ring.style.setProperty('--pct', pct + '%');
       }
@@ -1436,10 +1443,22 @@
       const st = scanRecState;
       st.stepElapsed += 0.2; st.totalElapsed += 0.2;
       const step = ROOM_GUIDE_STEPS[st.stepIdx];
-      // v2 · 完成度驱动推进:过了最短时长后,方位覆盖达标(或陀螺仪不可用回退时间)即换段;maxSec 兜底
-      if (step && st.stepElapsed >= step.sec) {
-        const goalMet = !step.azimuthGoal || !st.orient.available || st.azimuth.size >= step.azimuthGoal;
-        if (goalMet || st.stepElapsed >= (step.maxSec || step.sec)) scanRecAdvanceStep();
+      // v3 · 推进规则(核心:没拍完不结束):
+      //  覆盖段(azimuthGoal>0 且陀螺仪可用):覆盖达标才走;没达标但环还在点亮新扇区(=人还在转)
+      //    就一直等;停滞 SCAN_REC_STALL_SEC 秒没新扇区(卡住/俯仰一直不达标)才兜底,
+      //    SCAN_REC_STEP_CAP_SEC 防挂死。v2 的 maxSec 硬切会把转得慢的人拦腰截断,废弃。
+      //  其余(ready/loop 或陀螺仪降级):纯时间驱动,降级用 noGyroSec(按慢速转一圈标定)
+      if (step) {
+        if (step.azimuthGoal && st.orient.available) {
+          if (st.azimuth.size > st.lastAzimuthSize) { st.lastAzimuthSize = st.azimuth.size; st.lastProgressAt = st.stepElapsed; }
+          if (st.stepElapsed >= step.sec) {
+            const goalMet = st.azimuth.size >= step.azimuthGoal;
+            const stalled = (st.stepElapsed - st.lastProgressAt) >= SCAN_REC_STALL_SEC;
+            if (goalMet || stalled || st.stepElapsed >= SCAN_REC_STEP_CAP_SEC) scanRecAdvanceStep();
+          }
+        } else if (st.stepElapsed >= (st.orient.available ? step.sec : (step.noGyroSec || step.sec))) {
+          scanRecAdvanceStep();
+        }
       }
       if (st.stepIdx >= ROOM_GUIDE_STEPS.length) {
         // 引导走完 → 自动停录保存
@@ -1532,9 +1551,9 @@
         scanRecState.active = true;
         // 4. 引导计时启动
         scanRecState.stepIdx = 0; scanRecState.stepElapsed = 0; scanRecState.totalElapsed = 0;
-        scanRecState.totalSec = ROOM_GUIDE_STEPS.reduce((a, s) => a + s.sec, 0);
         scanRecState.cover = { ceil: false, floor: false };
         scanRecState.azimuth = new Set();
+        scanRecState.lastAzimuthSize = 0; scanRecState.lastProgressAt = 0;
         scanRecRefreshHud();
         scanRecState.timer = setInterval(scanRecTick, 200);
         scanRecAnnounce(ROOM_GUIDE_STEPS[0]);  // v2 · 第一段也语音+震动播报

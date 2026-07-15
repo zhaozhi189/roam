@@ -196,11 +196,12 @@ else
     echo "▶ [4/5] 场景模式:跳过主体提取(保留环境)"
   fi
   echo "▶ [5/5] splat-transform 过滤 + 压缩…"
-  # scene 模式加 -G(GPU 体素 floater 过滤);object 模式连通域已除尽 floater,不必再开
+  # scene 模式加 -F(GPU 体素 floater 过滤;v3.0 起旧 -G 改名 -F/--filter-floaters,
+  # 2026-07-16 npx 拉到 v3 后 -G 报 Unknown option 踩过);object 模式连通域已除尽 floater,不必再开
   # 注意:macOS bash 3.2 + set -u 下空数组展开会报 unbound,这里用字符串变量(单 flag 无空格,安全)
   GPU_FILTER=""
-  [ "$MODE" = "scene" ] && GPU_FILTER="-G"
-  npx -y @playcanvas/splat-transform -w "$SRC" \
+  [ "$MODE" = "scene" ] && GPU_FILTER="-F"
+  npx -y @playcanvas/splat-transform@3 -w "$SRC" \
     -V scale_0,lt,1 -V scale_1,lt,1 -V scale_2,lt,1 \
     -V opacity,gt,0.05 $GPU_FILTER \
     "$FINAL"

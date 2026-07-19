@@ -292,8 +292,9 @@
     #scan-rec-ring::after { content:''; position:absolute; inset:10px; border-radius:50%; background:rgba(0,0,0,.35); }
     #scan-rec-pct { position:relative; font-size:20px; font-weight:700; }
     #scan-rec-warn { position:absolute; top:58%; left:0; right:0; text-align:center; font-size:16px; font-weight:700; color:#ff5252; min-height:20px; }
-    #scan-rec-cover { position:absolute; bottom:120px; left:0; right:0; text-align:center; font-size:15px; }
-    #scan-rec-timer { position:absolute; bottom:90px; left:0; right:0; text-align:center; font-size:15px; }
+    /* 底部三行自下而上:停止(base) → 下一段(base+68) → 计时(base+128) → 覆盖(base+158),不重叠 */
+    #scan-rec-cover { position:absolute; bottom:calc(max(env(safe-area-inset-bottom),24px) + 158px); left:0; right:0; text-align:center; font-size:15px; }
+    #scan-rec-timer { position:absolute; bottom:calc(max(env(safe-area-inset-bottom),24px) + 128px); left:0; right:0; text-align:center; font-size:15px; }
     #scan-rec-stop { position:fixed; bottom:max(env(safe-area-inset-bottom),24px); left:50%; transform:translateX(-50%);
       z-index:2147483602; pointer-events:auto; background:#ff3b30; color:#fff; border:none; border-radius:28px; padding:14px 36px; font-size:17px; font-weight:700; }
     /* v4 · 手动推进按钮:引导段拍够了由拍摄者自己点,达标(ready)变绿放大提示 */
